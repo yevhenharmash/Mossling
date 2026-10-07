@@ -1,6 +1,6 @@
-# Mossling — Game Design Doc (draft v0.2)
+# Mossling — Game Design Doc (draft v0.3)
 
-> Status: **draft v0.2**, decisions in §13. Anything not yet confirmed by the author is marked _(proposal)_.
+> Status: **draft v0.3**. Decisions are in §13; the v2 game systems are in §5–§8. All numbers are tunable; they live in `src/core/tuning.ts`.
 
 ## 1. Pitch
 
@@ -21,48 +21,138 @@ Mossling is inspired by the **mood** of Moomin-style stories: Nordic, seasonal, 
 - No white, rounded, hippo-snouted silhouette. The Mossling must read as its own creature.
 - No copied art style. Take inspiration from Scandinavian folk art, mushrooms, lichen, and forest floors instead.
 
-## 4. The creature _(proposal)_
+## 4. The creature
 
-- A palm-sized, round, mossy spirit with a soft body of moss and lichen, two dark bead eyes, and tiny root-feet.
-- It changes as it grows: sprouts, a mushroom cap, flowers, frost, and so on. These changes show its personality and the current season.
-- Its expressions are mostly in the eyes, posture, and small particles (spores, dewdrops, sleepy "z"s).
+Storybook look in the spirit of Nordic picture books: hand-inked outlines, soft washes, paper grain.
 
-## 5. Needs (MVP: 4) _(proposal)_
+- An upright, pale-cream little forest troll: soft pear-shaped body on stubby legs, short arms, small dot eyes, a tiny soft nose and rosy cheeks.
+- What makes it a *Mossling*: **leaf-shaped ears** that droop when it's sad or sleepy and wiggle when it's happy, a **mossy cap** with a sprout growing from it, and a thin tail ending in a **moss tuft**.
+- Deliberately not Moomin: no snout, no hippo silhouette. Deliberately not Totoro: no pointy ears, no belly chevrons.
+- Expressions use the eyes, mouth, ears, arms and small particles (frost, tear, sleepy "z"s).
+- Later growth stages can change the cap, sprout and tail (flowers, a mushroom, frost in winter).
 
-Each need is a value from 0 to 100 that drifts slowly. None of them can cause death.
+## 5. Needs and moods
+
+Four needs, each 0–100, that drift over time. None of them ever drops below **10**.
 
 | Need | Drops when | Restored by |
 |---|---|---|
-| **Fullness** | Time passes | Feeding |
-| **Warmth** | Time passes; faster at night and in winter | Tea, blanket, bringing it inside |
-| **Rest** | Being awake; play | Sleep (it naps on its own at night) |
-| **Companionship** | Time without visits | Visiting, talking, telling stories, walks |
+| **Fullness** | Time passes | Food (porridge is unlimited; pantry food is better) |
+| **Warmth** | Time passes; faster at night and in winter | Hugs, tea, soup, porridge, a blanket |
+| **Rest** | Being awake; walks | Sleep (it goes to bed by itself at night) |
+| **Companionship** | Time without you | Hugs, stories, walks, gifts, any interaction |
 
-A derived **Mood** (content / restless / sad / lonely) comes from the needs. Mood drives the animations and dialogue.
+**Moods**, in priority order (the first one that applies wins): away → walking → at the door → asleep → sniffly → delighted → hungry / cold / sleepy / lonely (a need under 30) → restless (a need under 50) → content.
 
-## 6. Care actions (MVP) _(proposal)_
+## 6. Game systems
 
-- **Feed**: berries, mushrooms, or tea (warms it too).
-- **Tuck in**: puts it to sleep and restores Rest faster.
-- **Tell a story**: adds Companionship. You pick from a few short story cards.
-- **Walk**: a short real-time outing (e.g. 10 minutes) that returns small found items: pebbles, feathers, seeds.
-- **Tidy the burrow**: a light cosmetic chore that gives a small mood bonus.
+The goal is depth from systems that feed each other, not from more meters. Each system below says what it feeds into.
+
+### 6.1 Calendar: seasons, day length and weather → decay, walks, wishes, visuals
+- **Season** comes from the real month and a **hemisphere** setting (north by default; south is shifted 6 months).
+- **Night hours:** winter 20–8, spring 22–6, summer 23–6, autumn 21–7. It goes to bed by itself at night.
+- **Warmth decay by season:** winter ×1.25, autumn ×1.1, spring ×1, summer ×0.6.
+- **Weather** is rolled once per day per season: sunny, cloudy, rain, fog or snow (snow only in winter). Weather only matters **outdoors**:
+  - Rain chills it on walks and brings snails and mushrooms.
+  - Fog makes rare glowcaps 4× likelier.
+  - Snow brings icicles.
+
+### 6.2 Foraging and the pantry → food, wishes, favourites
+- **Porridge** is unlimited: always available, never distressing to rely on.
+- **Pantry foods** come from walks:
+
+  | Food | Uses | Effect |
+  |---|---|---|
+  | Berries | 1 berry | +25 Fullness, +5 Companionship |
+  | Mushroom soup | 1 mushroom | +40 Fullness, +15 Warmth |
+  | Pine tea | 1 pine needles | +35 Warmth; cures sniffles |
+
+- A new Mossling starts with a small pantry: 3 berries, 2 mushrooms and 3 pine needles.
+- **Walk destinations:**
+  - **Meadow:** 20 min, always available.
+  - **Stream:** 45 min. Needs bond ♥1, and it can't be a sprout.
+  - **Old Woods:** 2 h. Needs bond ♥3 and Rest of at least 50.
+- **What walks bring back:** finds come from loot tables per destination × season × weather, mixing pantry food and collectibles.
+- **Collecting finds:** it waits at the door for 60 minutes. Collected in time, you get everything plus bond. After that it goes in by itself with half the finds.
+
+### 6.3 Preferences and discovery → delight, bond, journal
+- Every Mossling is born with a **favourite food**, a **disliked food**, a **favourite story** and a **favourite found item**. These are seeded from its id, so each one is different.
+- **Favourites:** giving it a favourite **delights** it (a special mood for 30 min), adds Companionship and adds bond.
+- **Dislikes:** it refuses the disliked food. A refusal never uses up the item.
+- Whatever you discover is written in the **journal** ("Pip loves pine tea").
+- **Stories:** you pick from 3 story cards that change through the day.
+
+### 6.4 Daily wish → bond
+- Each day it has one small **wish**: hear a story, eat a specific food, a hug, a present, or a walk to a destination it can reach.
+- The wish is rolled when the day starts and stays the same for the whole day.
+- Granting it gives +5 bond, delight and Companionship.
+
+### 6.5 Bond (0–5 ♥) → unlocks
+- Bond grows only through **capped** sources, so it can't be farmed:
+  - **Wish granted:** +5 a day.
+  - **Favourites:** +3 each, at most once per favourite kind per day.
+  - **Walks collected in time:** +2 each, at most 2 walks a day.
+  - **A "good day":** +2, the first time you interact while it's content that day.
+- **Levels:** 0, 12, 35, 70, 120, 190 points.
+- **What each level unlocks:**
+  - ♥1: the Stream.
+  - ♥2: +1 find on every walk.
+  - ♥3: the Old Woods.
+  - ♥4: it trusts you'll come back, so it waits **4 days** instead of 3 before wandering off.
+
+### 6.6 Growth and personality → visuals, small perks
+- **Age** counts real days from birth:
+  - **Sprout:** day 0–2. Tires faster (Rest ×1.2) and only walks to the Meadow.
+  - **Young:** day 2–7.
+  - **Grown:** day 7–30.
+  - **Elder:** from day 30. Everything drains ×0.85 and it grows a lichen beard.
+- **Elder is the final stage.** There is no death. (Later: an elder can plant a spore for a second Mossling.)
+- **Personality form** is set when it becomes Young and set again when Grown. It follows how you mostly played:
+
+  | Form | How you mostly played | Perk |
+  |---|---|---|
+  | **Wanderer** | Walks | +1 find per walk |
+  | **Dreamer** | Stories | Stories give +50% Companionship |
+  | **Foodie** | Pantry food | Food fills +25% |
+  | **Homebody** | Hugs, tucking in | Warmth drains ×0.85, hugs +50% |
+
+  A Mossling nobody shaped becomes a Homebody. Each form adds an accessory: a satchel, a flower, a mushroom or a scarf.
+- **Perks are only ever positive.** Pacing never depends on the form.
+
+### 6.7 Sniffles (gentle condition) → a reason to keep pine needles
+- **Catching it:** 3 hours with Warmth at or below 20 gives it the sniffles.
+- **While sniffly:** it tires faster (Rest ×1.5) and won't take long walks (Meadow is fine).
+- **Getting better:** tea cures it at once. Otherwise it **gets better by itself within 24 h**. Nothing is permanent.
+- **After getting better** it can't catch them again for 24 h, so a neglected Mossling never gets stuck in a loop of sniffles.
+
+### 6.8 Journal → memories
+- The journal keeps important moments in its life:
+  - when it hatched
+  - each stage and form
+  - its first walk
+  - favourites and dislikes discovered
+  - sniffles caught and cured
+  - wandering off and being found
+  - each new season
+  - its first snow
+  - each bond level reached
+- It keeps the latest 100 entries.
 
 ## 7. Time model
 
-This is the core technical decision.
+- **State is computed, not ticked.** On load the simulation steps from `simulatedTo` to now in 5-minute steps. Each step also stops exactly at walk events. Steps check night and season at their own timestamp. A clock that went backwards changes nothing.
+- **Floor:** no need ever drops below 10.
+- **Absence:** if Companionship sits at the floor for 3 days in a row (4 days at ♥4+), it **wanders off**. Any interaction resets that streak. While it's away, needs freeze, but age, seasons and days keep moving, so it can come back older. Following the spore trail always brings it home with a glowcap.
+- **Pace** (tested in every season): **2–4 visits a day** keep every need at 30 or above at each visit, even with porridge and hugs only. One visit a day leaves it needy but it never wanders off.
+- **Notifications** _(later)_ are computed ahead from the same math. Gentle tone, one or two a day.
 
-- **State is computed, not ticked.** Saved state is `{ needs, lastSeen, ... }`. On load: `elapsed = now - lastSeen`, then apply the decay rates over `elapsed`. Nothing has to run in the background.
-- **Decay has a floor.** No need ever drops below 10, whether the app is open or not. Coming back after a month never shows a ruined pet.
-- **Absence policy:** if Companionship sits at the floor (10) for 3 days in a row, the Mossling **wanders off**. Any interaction, even just feeding, resets that streak, so only a real absence of about 4 days triggers it. When you return, the burrow is empty. A short "find it" moment (following footprints or spores) brings it home with a small found gift. It is never lost forever. _(proposal)_
-- **Notifications** are computed ahead from the same math, e.g. "it's getting chilly" when Warmth will cross a threshold. These can be scheduled as local notifications. Gentle tone, at most one or two a day. _(proposal)_
-- **Seasons** follow the real calendar (hemisphere setting). Winter means more sleeping and faster Warmth decay. Spring speeds up growth. Summer allows longer walks. Autumn gives better finds.
+## 8. What's not built yet
 
-## 8. Growth and personality _(proposal)_
-
-- Hidden traits move with care patterns. Examples: many walks push toward *Wanderer*; many stories toward *Dreamer*; frequent short visits toward *Homebody*; rare visits toward *Shy*.
-- Stages: **Spore → Sprout → Mossling → Elder Moss**, over weeks rather than hours.
-- Each stage plus the dominant trait sets visual details and dialogue lines.
+- **Burrow:** tidying and decorating it (spend collectibles on a lantern, a shelf, a rug for small comfort perks).
+- **World:** visitors and the wider valley (§9), and a collection book.
+- **Legacy:** an elder plants a spore and you raise a second Mossling (the save already holds a list of pets).
+- **Platform:** notifications, a PWA manifest and Capacitor wrapping.
+- **Polish:** audio (§10).
 
 ## 9. World _(later, not MVP)_
 
@@ -88,17 +178,11 @@ Goal: build for the web first, then reuse the same code in native apps.
   - **Option C:** if a native-first feel matters more, rebuild the UI in **Expo / React Native**, which also runs on web via react-native-web. `core/` is reused as-is.
 - Home-screen **widgets** need native code (Swift/Kotlin) on any route. They would read the same saved state.
 
-## 12. MVP scope
+## 12. Status
 
-- [x] One Mossling at stage *Sprout*.
-- [x] Four needs plus the derived mood, using the computed time model and capped offline decay.
-- [x] Feed, Tuck in, Tell a story, Walk.
-- [x] Day/night from the real clock.
-- [x] Local save and load.
-- [x] Simple animated creature showing mood states (idle, happy, sleepy, cold, lonely).
-- [x] Wander-off and find-it-again event.
-- [x] Dev-only time controls (fast-forward) for testing.
-- Deferred: seasons, growth stages, the world, visitors, notifications, native wrapping.
+- [x] MVP: needs, moods, care actions, day/night, local save, wander-off, dev time travel.
+- [x] v2 systems: seasons, weather, pantry and foraging, destinations, preferences, wishes, bond, growth stages, personality forms, sniffles, journal.
+- [ ] Later: see §8.
 
 ## 13. Decisions (2026-10-07)
 
@@ -111,5 +195,4 @@ Goal: build for the web first, then reuse the same code in native apps.
 
 ## 14. Open questions
 
-- Exact decay tuning after playtesting.
-- Hemisphere and season setup once seasons are added.
+- Exact tuning after real playtesting (all numbers live in `tuning.ts`).

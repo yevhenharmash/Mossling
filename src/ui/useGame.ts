@@ -61,6 +61,17 @@ export function useGame() {
     return result
   }, [])
 
+  /** Non-action changes (settings, dev tools): any pure Pet → Pet function. */
+  const update = useCallback((fn: (pet: Pet, now: number) => Pet) => {
+    const current = saveRef.current
+    if (!current) return
+    const next = withPet(current, fn(activePet(current), clock.now()))
+    saveRef.current = next
+    setSave(next)
+    // Read the clock again: dev tools may have moved it.
+    setNow(clock.now())
+  }, [])
+
   const create = useCallback((name: string) => {
     const t = clock.now()
     setNow(t)
@@ -83,5 +94,5 @@ export function useGame() {
     setNow(clock.now())
   }, [])
 
-  return { loaded, pet: save ? activePet(save) : null, now, act, create, skip, reset }
+  return { loaded, pet: save ? activePet(save) : null, now, act, update, create, skip, reset }
 }
