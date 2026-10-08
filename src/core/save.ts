@@ -3,9 +3,11 @@ import { NEED_KEYS } from './types'
 import { dayIndex, seasonAt } from './calendar'
 import { emptyTraits, stageAt } from './growth'
 import { rollWish } from './prefs'
+import { emptyCare } from './care'
+import { newDaily } from './sim'
 import { STARTING_PANTRY } from './tuning'
 
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 export function newSave(pet: Pet): Save {
   return { version: SAVE_VERSION, pets: [pet], activePetId: pet.id }
@@ -27,10 +29,31 @@ type PetV1 = Pick<
   activity: { kind: 'walk'; startedAt: number; endsAt: number; finds: string[] } | null
 }
 
+/** A v2 pet: everything except the care systems (calls, messes, coats). */
+type PetV2 = Omit<Pet, 'coat' | 'care' | 'call' | 'missedNeeds' | 'messes' | 'messClock' | 'visitAt' | 'fussRolled' | 'daily'> & {
+  daily: Pick<Pet['daily'], 'day' | 'goodDay' | 'walkBonds' | 'favorites'>
+}
+
+/** v2 → v3: a clean slate for care. A Mossling already past sprout keeps the plain coat. */
+export function migratePetV2(old: PetV2): Pet {
+  return {
+    ...old,
+    coat: old.stage === 'sprout' ? null : 'mossy',
+    care: emptyCare(),
+    call: null,
+    missedNeeds: [],
+    messes: [],
+    messClock: 0,
+    visitAt: old.lastInteractionAt,
+    fussRolled: false,
+    daily: { ...newDaily(old.daily.day), ...old.daily },
+  }
+}
+
 /** v1 (MVP) → v2: keep everything it had, fill in the new systems as if it was just met. */
-export function migratePetV1(old: PetV1): Pet {
+export function migratePetV1(old: PetV1): PetV2 {
   const t = old.simulatedTo
-  const pet: Pet = {
+  const pet: PetV2 = {
     id: old.id,
     name: old.name,
     bornAt: old.bornAt,
@@ -62,7 +85,7 @@ export function migratePetV1(old: PetV1): Pet {
   }
   // Someone who already raised it past sprout gets a form from day one.
   if (pet.stage !== 'sprout') pet.form = 'homebody'
-  pet.wish = rollWish(pet, pet.daily.day)
+  pet.wish = rollWish(migratePetV2(pet), pet.daily.day)
   return pet
 }
 
@@ -85,12 +108,12 @@ export function parseSave(raw: string | null): Save | null {
   try {
     const data = JSON.parse(raw) as { version?: number; pets?: unknown[]; activePetId?: string }
     if (!Array.isArray(data?.pets) || data.pets.length === 0 || !data.pets.every(isPetLike)) return null
-    if (data.version === 1) {
-      const pets = (data.pets as PetV1[]).map(migratePetV1)
-      return { version: SAVE_VERSION, pets, activePetId: data.activePetId ?? pets[0].id }
-    }
-    if (data.version !== SAVE_VERSION) return null
-    return data as Save
+    let pets: Pet[]
+    if (data.version === 1) pets = (data.pets as PetV1[]).map((p) => migratePetV2(migratePetV1(p)))
+    else if (data.version === 2) pets = (data.pets as PetV2[]).map(migratePetV2)
+    else if (data.version === SAVE_VERSION) pets = data.pets as Pet[]
+    else return null
+    return { version: SAVE_VERSION, pets, activePetId: data.activePetId ?? pets[0].id }
   } catch {
     return null
   }

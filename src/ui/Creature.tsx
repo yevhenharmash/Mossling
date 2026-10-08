@@ -1,4 +1,4 @@
-import type { Form, Stage } from '../core'
+import type { Coat, Form, Stage } from '../core'
 
 export type Face =
   | 'content'
@@ -12,7 +12,7 @@ export type Face =
   | 'delighted'
   | 'sniffly'
 
-type Props = { face: Face; bundle?: boolean; stage?: Stage; form?: Form | null }
+type Props = { face: Face; bundle?: boolean; stage?: Stage; form?: Form | null; coat?: Coat | null }
 
 // Storybook look: an upright, pale little forest troll drawn with a wobbly ink
 // line and soft washes. Original design: leaf ears, mossy cap, moss-tufted tail,
@@ -100,11 +100,11 @@ function Mouth({ face }: { face: Face }) {
   }
 }
 
-export function Creature({ face, bundle, stage = 'sprout', form = null }: Props) {
+export function Creature({ face, bundle, stage = 'sprout', form = null, coat = null }: Props) {
   const drooping = face === 'lonely' || face === 'sleepy' || face === 'sniffly'
   const leafy = stage === 'grown' || stage === 'elder'
   return (
-    <svg className={`creature troll face-${face} stage-${stage}`} viewBox="0 0 120 120" role="img" aria-label="Your Mossling">
+    <svg className={`creature troll face-${face} stage-${stage} coat-${coat ?? 'none'}`} viewBox="0 0 120 120" role="img" aria-label="Your Mossling">
       <defs>
         <radialGradient id="trollBody" cx="42%" cy="35%" r="70%">
           <stop offset="0%" stopColor="#fbf8ec" />
@@ -150,6 +150,7 @@ export function Creature({ face, bundle, stage = 'sprout', form = null }: Props)
         </g>
 
         <path d={BODY} fill="url(#trollBody)" {...line} />
+        {coat === 'glossy' && <path d="M44 34 C38 42 37 52 39 60" fill="none" stroke="#fff" strokeWidth={3.2} strokeLinecap="round" opacity={0.7} />}
         {/* belly wash */}
         <ellipse cx={60} cy={82} rx={20} ry={15} fill="#fffdf4" opacity={0.35} />
         {face === 'cold' && <path d={BODY} fill="#a9cbe3" opacity={0.28} />}
@@ -175,6 +176,8 @@ export function Creature({ face, bundle, stage = 'sprout', form = null }: Props)
           <circle cx={72} cy={31} r={1.4} />
         </g>
 
+        {coat === 'wild' && <WildTufts />}
+
         {/* cheeks */}
         <ellipse cx={45} cy={63} rx={4.2} ry={2.4} fill="#e9a493" opacity={0.45} />
         <ellipse cx={75} cy={63} rx={4.2} ry={2.4} fill="#e9a493" opacity={0.45} />
@@ -199,6 +202,15 @@ export function Creature({ face, bundle, stage = 'sprout', form = null }: Props)
         <path d="M61 11 C65 4 72 3 75 5 C72 9 67 12 61 11 Z" fill="url(#trollMoss)" {...line} strokeWidth={1.1} />
         {leafy && <path d="M60 17 C55 15 51 16 49 19 C53 21 57 20 60 17 Z" fill="url(#trollMoss)" {...line} strokeWidth={1} />}
       </g>
+
+      {coat === 'glossy' && (
+        <g fill="#fff6cf" className="sparkles glossy">
+          <path d="M32 24 l1.6 4 l4 1.6 l-4 1.6 l-1.6 4 l-1.6 -4 l-4 -1.6 l4 -1.6 z" stroke="#d9b54a" strokeWidth={0.6} />
+          <path d="M90 44 l1.2 3 l3 1.2 l-3 1.2 l-1.2 3 l-1.2 -3 l-3 -1.2 l3 -1.2 z" stroke="#d9b54a" strokeWidth={0.6} />
+          <path d="M24 70 l0.9 2.2 l2.2 0.9 l-2.2 0.9 l-0.9 2.2 l-0.9 -2.2 l-2.2 -0.9 l2.2 -0.9 z" stroke="#d9b54a" strokeWidth={0.6} />
+          <circle cx={75} cy={6} r={1.6} fill="#d8f0ff" stroke={INK} strokeWidth={0.6} />
+        </g>
+      )}
 
       {face === 'delighted' && (
         <g fill="#f2d675" className="sparkles">
@@ -231,6 +243,21 @@ export function Creature({ face, bundle, stage = 'sprout', form = null }: Props)
         </g>
       )}
     </svg>
+  )
+}
+
+/** The wild coat: tousled moss sticking out every which way, with a twig in it. */
+function WildTufts() {
+  return (
+    <g {...line} strokeWidth={1.1}>
+      <path d="M37 40 l-6 -3 l4 -1 l-5 -5 l6 2 l1 -5 l3 6" fill="url(#trollMoss)" />
+      <path d="M83 41 l6 -2 l-4 -2 l5 -5 l-6 1 l0 -5 l-4 5" fill="url(#trollMoss)" />
+      <path d="M55 26 l-2 -6 l4 3 l2 -5 l2 5 l3 -4 l0 6" fill="url(#trollMoss)" />
+      <path d="M64 31 L84 15 M75 22 l5 1 M79 18 l1 -4" fill="none" stroke="#5b3f24" strokeWidth={2.2} />
+      <path d="M84 15 c3 -4 8 -4 9 -2 c-2 3 -6 4 -9 2 z" fill="#c8743d" strokeWidth={0.9} />
+      <circle cx={104} cy={73} r={3} fill="url(#trollMoss)" />
+      <circle cx={98} cy={74} r={2.4} fill="url(#trollMoss)" />
+    </g>
   )
 }
 

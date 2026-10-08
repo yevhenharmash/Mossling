@@ -1,5 +1,5 @@
-import type { Collectible, Destination, Food, Pet, Wish, WishKind } from './types'
-import { COLLECTIBLES, DESTINATIONS, WISH_KINDS } from './types'
+import type { Collectible, Destination, Food, HideSpot, Pet, Wish, WishKind } from './types'
+import { COLLECTIBLES, DESTINATIONS, HIDE_SPOTS, WISH_KINDS } from './types'
 import { DESTINATION_INFO } from './tuning'
 import { STORIES } from './stories'
 import { hashString, seededRandom } from './random'
@@ -12,6 +12,8 @@ export type Preferences = {
   dislikedFood: Food
   favoriteStory: number
   favoriteItem: Collectible
+  /** Where it likes to hide; a player who notices wins hide-and-seek more often. */
+  favoriteSpot: HideSpot
 }
 
 /** Born with these; seeded from the id so every Mossling differs but never changes. */
@@ -24,7 +26,8 @@ export function preferencesOf(petId: string): Preferences {
   // Glowcaps are rare; don't make one the thing it longs for most.
   const giftable = COLLECTIBLES.filter((c) => c !== 'glowcap')
   const favoriteItem = giftable[Math.floor(rand() * giftable.length)]
-  return { favoriteFood, dislikedFood, favoriteStory, favoriteItem }
+  const favoriteSpot = HIDE_SPOTS[Math.floor(rand() * HIDE_SPOTS.length)]
+  return { favoriteFood, dislikedFood, favoriteStory, favoriteItem, favoriteSpot }
 }
 
 /** Three story cards on offer; they change every 6 hours. */

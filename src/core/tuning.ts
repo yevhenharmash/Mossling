@@ -106,8 +106,9 @@ export const FORM_PERKS = {
   homebodyHug: 1.5,
 }
 /** Trait points per action, deciding the form. */
-export const TRAIT_POINTS: Record<'walk' | 'story' | 'pantryFood' | 'porridge' | 'hug' | 'tuckIn', [Form, number]> = {
+export const TRAIT_POINTS: Record<'walk' | 'play' | 'story' | 'pantryFood' | 'porridge' | 'hug' | 'tuckIn', [Form, number]> = {
   walk: ['wanderer', 2],
+  play: ['wanderer', 1],
   story: ['dreamer', 2],
   pantryFood: ['foodie', 1.5],
   porridge: ['foodie', 0.5],
@@ -119,7 +120,7 @@ export const TRAIT_POINTS: Record<'walk' | 'story' | 'pantryFood' | 'porridge' |
 export const DELIGHT_FOR = 30 * MINUTE
 export const FAVORITE_COMPANIONSHIP = 10
 export const WISH_COMPANIONSHIP = 10
-export const BOND = { wish: 5, favorite: 3, walk: 2, walkDailyCap: 2, goodDay: 2 }
+export const BOND = { wish: 5, favorite: 3, walk: 2, walkDailyCap: 2, goodDay: 2, playWin: 2 }
 /** Points needed for each bond level (index = level). */
 export const BOND_LEVELS = [0, 12, 35, 70, 120, 190]
 export const BOND_EXTRA_FIND_LEVEL = 2
@@ -131,6 +132,46 @@ export const SNIFFLES_AFTER_CHILL_HOURS = 3
 export const SNIFFLES_HEAL_AFTER = 24 * HOUR
 /** After getting better it can't catch them again for this long. */
 export const SNIFFLES_IMMUNITY = 24 * HOUR
+
+// Calls and care (DESIGN.md §6.9). A two-visit day (8:00 and 19:00) must never
+// cost a care mistake: only skipped visits do. Tested in pacing.test.ts.
+/** A need under the distress line calls you; answer within this long. */
+export const CALL_WINDOW = 2 * HOUR
+/** A fuss lasts this long, then it forgets about it (no mistake either way). */
+export const FUSS_FOR = 20 * MINUTE
+/** Chance of a fuss on a visit, once it is content. */
+export const FUSS_CHANCE = 0.5
+export const FUSS_PER_DAY = 2
+/** An interaction after this long without one starts a new visit. */
+export const VISIT_GAP = HOUR
+/** Settling a fuss: a pat and a gentle "not now". */
+export const SETTLE_COMPANIONSHIP = 5
+
+/** One mess per this many hours awake at home; never more than MESS_MAX at once. */
+export const MESS_EVERY = 5
+export const MESS_MAX = 3
+/** A mess left this long is a care mistake (once per mess). */
+export const MESS_GRACE = 16 * HOUR
+
+/**
+ * Coat when entering a stage, from care in the stage before it: glossy needs
+ * few mistakes and some manners; wild comes from many mistakes; otherwise mossy.
+ */
+export const COAT_RULES: Record<'young' | 'grown', { glossyMaxMistakes: number; glossyMinManners: number; wildFromMistakes: number }> = {
+  young: { glossyMaxMistakes: 0, glossyMinManners: 1, wildFromMistakes: 3 },
+  grown: { glossyMaxMistakes: 1, glossyMinManners: 3, wildFromMistakes: 6 },
+}
+
+// Hide-and-seek.
+export const PLAY_ROUNDS = 3
+/** Wins with at least this many found. */
+export const PLAY_WIN_AT = 2
+/** It hides in its favourite spot this often; the rest is split evenly. */
+export const FAVORITE_SPOT_CHANCE = 0.6
+/** A game must be finished within this long of starting. */
+export const PLAY_MAX = 15 * MINUTE
+export const PLAY_MIN_REST = 25
+export const PLAY = { win: 20, lose: 10, rest: -6, fullness: -4 }
 
 export const FOUND_NEEDS = { fullness: 50, warmth: 50, rest: 70, companionship: 60 }
 export const JOURNAL_MAX = 100

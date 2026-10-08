@@ -1,6 +1,6 @@
-# Mossling — Game Design Doc (draft v0.3)
+# Mossling — Game Design Doc (draft v0.4)
 
-> Status: **draft v0.3**. Decisions are in §13; the v2 game systems are in §5–§8. All numbers are tunable; they live in `src/core/tuning.ts`.
+> Status: **draft v0.4**. Decisions are in §13; the game systems are in §5–§8. v0.4 adds the care loop borrowed from the original Tamagotchi (§6.9–§6.10). All numbers are tunable; they live in `src/core/tuning.ts`.
 
 ## 1. Pitch
 
@@ -8,7 +8,7 @@ A tiny forest spirit grows from a patch of moss and lives with you in real time.
 
 ## 2. Pillars
 
-1. **Gentle, never punishing.** No death, no guilt-trip notifications. Neglect makes the Mossling lonely, not sick.
+1. **Gentle, but your care shows.** No death, no guilt-trip notifications. Neglect makes the Mossling lonely, not sick. How well you look after it shapes **what it grows into** (its coat, §6.9), never whether it survives. Every outcome is a nice one; some are just harder to get.
 2. **Lives on real time.** Day/night and seasons follow the real clock and calendar.
 3. **Small and quiet.** Short check-ins (30 seconds to 2 minutes) that feel like visiting a friend, not doing chores.
 4. **It becomes yours.** How you treat it shapes its personality and appearance.
@@ -42,7 +42,7 @@ Four needs, each 0–100, that drift over time. None of them ever drops below **
 | **Rest** | Being awake; walks | Sleep (it goes to bed by itself at night) |
 | **Companionship** | Time without you | Hugs, stories, walks, gifts, any interaction |
 
-**Moods**, in priority order (the first one that applies wins): away → walking → at the door → asleep → sniffly → delighted → hungry / cold / sleepy / lonely (a need under 30) → restless (a need under 50) → content.
+**Moods**, in priority order (the first one that applies wins): away → walking → at the door → asleep → sniffly → fussy → delighted → hungry / cold / sleepy / lonely (a need under 30) → restless (a need under 50) → content.
 
 ## 6. Game systems
 
@@ -83,7 +83,7 @@ The goal is depth from systems that feed each other, not from more meters. Each 
 - **Stories:** you pick from 3 story cards that change through the day.
 
 ### 6.4 Daily wish → bond
-- Each day it has one small **wish**: hear a story, eat a specific food, a hug, a present, or a walk to a destination it can reach.
+- Each day it has one small **wish**: hear a story, eat a specific food, a hug, a present, a game of hide-and-seek, or a walk to a destination it can reach.
 - The wish is rolled when the day starts and stays the same for the whole day.
 - Granting it gives +5 bond, delight and Companionship.
 
@@ -93,6 +93,7 @@ The goal is depth from systems that feed each other, not from more meters. Each 
   - **Favourites:** +3 each, at most once per favourite kind per day.
   - **Walks collected in time:** +2 each, at most 2 walks a day.
   - **A "good day":** +2, the first time you interact while it's content that day.
+  - **Hide-and-seek win:** +2, once a day.
 - **Levels:** 0, 12, 35, 70, 120, 190 points.
 - **What each level unlocks:**
   - ♥1: the Stream.
@@ -118,6 +119,7 @@ The goal is depth from systems that feed each other, not from more meters. Each 
 
   A Mossling nobody shaped becomes a Homebody. Each form adds an accessory: a satchel, a flower, a mushroom or a scarf.
 - **Perks are only ever positive.** Pacing never depends on the form.
+- **Coat** is set at the same moments as the form, from how well you cared for it in the stage before (§6.9). Together they give 12 looks (4 forms × 3 coats), e.g. "Glossy Dreamer" or "Wild Wanderer".
 
 ### 6.7 Sniffles (gentle condition) → a reason to keep pine needles
 - **Catching it:** 3 hours with Warmth at or below 20 gives it the sniffles.
@@ -137,6 +139,35 @@ The goal is depth from systems that feed each other, not from more meters. Each 
   - its first snow
   - each bond level reached
 - It keeps the latest 100 entries.
+
+### 6.9 Calls, messes and coats (from the original Tamagotchi) → what it grows into
+The original's hook was **care mistakes**: it called you, and how you answered decided which character it grew into. Mossling keeps that, minus the death and the beeping.
+
+- **Need calls.** When a need drops under 30 while it's awake at home, it **calls you** (a "!" over its head). Answer within **2 h** by bringing that need back to 30 or more. A missed call is one **care mistake**. That need then won't call again until it recovers, so one bad afternoon can't pile up mistakes.
+  - A sleepy call that nobody answers is never a mistake: it just dozes off by itself.
+  - No calls while it's asleep, out on a walk or away. Falling asleep ends a call with no harm done.
+- **Fussing (the original's "discipline").** Once per visit, the first time it's content, there's a **50%** chance it starts fussing for a treat, a game or a walk it doesn't need (at most 2 a day). A fuss looks just like a real call, so the player has to **check the meters**.
+  - "There, there. Not now." settles a fuss: **manners +1**.
+  - Giving it exactly what it fussed for (pantry food, hide-and-seek, a walk): **manners −1**.
+  - Trying to settle a real need is refused ("It really does need that!"), so it teaches without punishing.
+  - An ignored fuss fades after 20 min. That's no mistake either way.
+- **Messes.** It sheds **moss fluff** once per 5 h awake at home, up to 3 at once. Tap to tidy (fine while it sleeps). A mess left **16 h** is one care mistake.
+- **Coats** are decided when it becomes Young and again when Grown, from care in the stage just finished:
+
+  | Entering | Glossy | Wild | Otherwise |
+  |---|---|---|---|
+  | Young (after 2 sprout days) | 0 mistakes and manners ≥ 1 | 3+ mistakes | Mossy |
+  | Grown (after 5 young days) | ≤ 1 mistake and manners ≥ 3 | 6+ mistakes | Mossy |
+
+  - **Glossy:** a sheen and sparkles. **Mossy:** the plain soft look. **Wild:** tousled tufts and a twig, adventurous rather than sad.
+  - **Forgiveness:** a good day with no new mistakes mends one earlier mistake. Care counters start fresh at each stage.
+  - The UI shows the stakes plainly ("Grows up in 2 days, with a glossy coat so far"), because the audience includes kids.
+- **The pacing contract (tested):** 2 visits a day (8:00 and 19:00) or 3 visits (7:00, 16:00, 21:00) cost **zero** mistakes in every season and stage. Only skipped visits do. One visit a day grows a Wild coat.
+
+### 6.10 Hide-and-seek (the original's "play" game) → companionship, bond, discovery
+- 3 rounds. It hides behind the **stump**, in the **ferns** or under the **mushroom**; you tap where to look. Finding it 2+ times wins.
+- Every Mossling has a **favourite hiding spot** and picks it 60% of the time. A player who notices it wins about 65% of games instead of about 26%. That's a small, learnable skill, and it goes in the journal once discovered.
+- Win: +20 Companionship, delight, +2 bond once a day. Loss: still +10 Companionship. Either way it costs a little Rest and Fullness. It needs Rest of at least 25.
 
 ## 7. Time model
 
@@ -182,6 +213,7 @@ Goal: build for the web first, then reuse the same code in native apps.
 
 - [x] MVP: needs, moods, care actions, day/night, local save, wander-off, dev time travel.
 - [x] v2 systems: seasons, weather, pantry and foraging, destinations, preferences, wishes, bond, growth stages, personality forms, sniffles, journal.
+- [x] v0.4 care loop: need calls, fussing and manners, moss-fluff messes, coats, hide-and-seek.
 - [ ] Later: see §8.
 
 ## 13. Decisions (2026-10-07)
@@ -192,7 +224,10 @@ Goal: build for the web first, then reuse the same code in native apps.
 4. **Pace:** a normal day needs about **2–4 check-ins**. Supervised activities (e.g. a walk) invite extra visits, but missing them is never punished. The Mossling just comes home on its own with fewer finds.
 5. **Pets:** one Mossling for now. The save format stores a list of pets so more can be added later.
 6. **Platform:** web first (Vite + React + TypeScript). Capacitor wraps the same build for iOS/Android later with no rewrite. The pet simulation lives in `src/core/` as pure TypeScript, so a different UI layer could reuse it.
+7. **Challenge (2026-10-08):** borrow the original Tamagotchi's care loop (calls, false calls, droppings, a play mini-game, care-driven evolution). Consequences change what it **becomes**, never whether it lives. Not borrowed: death, sickness from droppings, weight, beeping.
 
 ## 14. Open questions
 
 - Exact tuning after real playtesting (all numbers live in `tuning.ts`).
+- Legacy (§8) would turn the 12 looks into a collection across generations ("which ones have you raised?"). That's the natural next hook.
+- Notifications could say "Pip is calling you" for need calls only, never for fusses.

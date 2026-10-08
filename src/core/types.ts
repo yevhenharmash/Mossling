@@ -19,6 +19,10 @@ export type Stage = (typeof STAGES)[number]
 export const FORMS = ['wanderer', 'dreamer', 'foodie', 'homebody'] as const
 export type Form = (typeof FORMS)[number]
 
+/** How well it was looked after while growing up. Every coat is a nice one. */
+export const COATS = ['glossy', 'mossy', 'wild'] as const
+export type Coat = (typeof COATS)[number]
+
 export const DESTINATIONS = ['meadow', 'stream', 'oldWoods'] as const
 export type Destination = (typeof DESTINATIONS)[number]
 
@@ -57,7 +61,7 @@ export type Walk = {
   finds: ItemKind[]
 }
 
-export const WISH_KINDS = ['story', 'hug', 'gift', 'food', 'walk'] as const
+export const WISH_KINDS = ['story', 'hug', 'gift', 'food', 'walk', 'play'] as const
 export type WishKind = (typeof WISH_KINDS)[number]
 
 export type Wish = {
@@ -69,7 +73,7 @@ export type Wish = {
   done: boolean
 }
 
-export const DISCOVERIES = ['favoriteFood', 'dislikedFood', 'favoriteStory', 'favoriteItem'] as const
+export const DISCOVERIES = ['favoriteFood', 'dislikedFood', 'favoriteStory', 'favoriteItem', 'favoriteSpot'] as const
 export type Discovery = (typeof DISCOVERIES)[number]
 
 export type JournalKind =
@@ -85,6 +89,7 @@ export type JournalKind =
   | 'season'
   | 'firstSnow'
   | 'bond'
+  | 'coat'
 
 export type JournalEntry = { at: number; kind: JournalKind; detail?: string }
 
@@ -94,7 +99,32 @@ export type Daily = {
   goodDay: boolean
   walkBonds: number
   favorites: Discovery[]
+  /** Care mistakes made today; a good day without any mends one. */
+  mistakes: number
+  fusses: number
+  playWon: boolean
 }
+
+/** Hide-and-seek spots, left to right. */
+export const HIDE_SPOTS = ['stump', 'fern', 'mushroom'] as const
+export type HideSpot = (typeof HIDE_SPOTS)[number]
+
+/** What it fusses for when nothing is actually wrong. */
+export const FUSS_WANTS = ['treat', 'play', 'walk'] as const
+export type FussWant = (typeof FUSS_WANTS)[number]
+
+/**
+ * It calls you, like the original's attention icon. A need call is real and
+ * must be answered in time; a fuss is a fib, and the kind answer is "not now".
+ */
+export type Call =
+  | { kind: 'need'; need: NeedKey; since: number; until: number }
+  | { kind: 'fuss'; want: FussWant; since: number; until: number }
+
+export type Mess = { at: number; /** Already counted as a care mistake. */ late: boolean }
+
+/** Care during the current growth stage; decides the coat at the next one. */
+export type Care = { mistakes: number; manners: number }
 
 export type Pet = {
   id: string
@@ -113,6 +143,18 @@ export type Pet = {
   inventory: Inventory
   stage: Stage
   form: Form | null
+  coat: Coat | null
+  care: Care
+  call: Call | null
+  /** Needs whose call was missed; they don't call again until they recover. */
+  missedNeeds: NeedKey[]
+  messes: Mess[]
+  /** Hours awake at home since the last mess. */
+  messClock: number
+  /** Start of the current visit (first interaction after a quiet spell). */
+  visitAt: number
+  /** Whether this visit has already had its chance of a fuss. */
+  fussRolled: boolean
   /** Accumulated play-style points; the top one decides the form. */
   traits: Record<Form, number>
   bond: number
@@ -135,7 +177,7 @@ export type Pet = {
 }
 
 export type Save = {
-  version: 2
+  version: 3
   pets: Pet[]
   activePetId: string
 }

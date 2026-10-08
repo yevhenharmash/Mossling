@@ -8,6 +8,7 @@ export const MOODS = [
   'atDoor',
   'asleep',
   'sniffly',
+  'fussy',
   'delighted',
   'hungry',
   'cold',
@@ -44,6 +45,7 @@ export function moodOf(pet: Pet, now: number): Mood {
   if (phase === 'atDoor') return 'atDoor'
   if (pet.asleep) return 'asleep'
   if (pet.sniffles) return 'sniffly'
+  if (pet.call?.kind === 'fuss' && now < pet.call.until) return 'fussy'
   if (now < pet.delightUntil) return 'delighted'
   const low = lowestNeed(pet)
   if (low.value < DISTRESS_BELOW) return NEED_MOOD[low.key]

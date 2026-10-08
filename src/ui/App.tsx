@@ -7,26 +7,37 @@ import {
   DESTINATIONS,
   FOOD_KINDS,
   FOODS,
+  HIDE_SPOTS,
   HOUR,
   ITEMS,
   PANTRY_ITEMS,
+  PLAY_MIN_REST,
+  PLAY_ROUNDS,
+  PLAY_WIN_AT,
+  STAGE_STARTS_AT_DAY,
+  STAGES,
   STORIES,
   ageInDays,
   bondLevel,
+  coatFor,
   collectFinds,
   dayIndex,
   feed,
   findMossling,
   give,
+  hidingSpots,
   hug,
   isNight,
   moodOf,
+  playHideAndSeek,
   preferencesOf,
   seasonAt,
   setHemisphere,
+  settle,
   startWalk,
   storyCards,
   tellStory,
+  tidy,
   tuckIn,
   wake,
   walkBlocker,
@@ -35,6 +46,7 @@ import {
   type Collectible,
   type Destination,
   type Food,
+  type HideSpot,
   type ItemKind,
   type Mood,
   type NeedKey,
@@ -43,16 +55,23 @@ import {
 import { Creature, type Face } from './Creature'
 import { MoundCreature } from './MoundCreature'
 import { careFor } from './devCare'
+import { clock } from './clock'
 import {
+  CALL_ICONS,
+  CALL_LINES,
+  COAT_HINTS,
+  COAT_LABELS,
   DESTINATION_LABELS,
   FOOD_LABELS,
   FOOD_LINES,
   FORM_LABELS,
+  FUSS_LINES,
   HIGHLIGHT_LINES,
   MOOD_LINES,
   REFUSAL_LINES,
   SEASON_ICONS,
   SEASON_LABELS,
+  SPOT_LABELS,
   STAGE_LABELS,
   WEATHER_ICONS,
   WEATHER_LABELS,
@@ -65,11 +84,17 @@ import { Scene } from './Scene'
 import { useGame } from './useGame'
 
 type Reaction = { text: string; happy: boolean; until: number }
-type Menu = 'feed' | 'story' | 'walk' | null
+type Menu = 'feed' | 'story' | 'walk' | 'play' | null
 type Look = 'troll' | 'mound'
 
 const REACTION_MS = 4500
 const LOOK_KEY = 'mossling.look'
+/** Where moss fluff gathers in the scene, oldest first. */
+const MESS_SPOTS = [
+  { left: '20%', top: '86%' },
+  { left: '33%', top: '93%' },
+  { left: '82%', top: '90%' },
+]
 const TRAIL = [
   { left: '18%', top: '78%' },
   { left: '46%', top: '62%' },
@@ -92,6 +117,7 @@ const MOOD_FACE: Partial<Record<Mood, Face>> = {
   sleepy: 'sleepy',
   lonely: 'lonely',
   sniffly: 'sniffly',
+  fussy: 'restless',
   asleep: 'asleep',
   atDoor: 'happy',
 }
@@ -189,17 +215,35 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
   const onBed = () =>
     run(pet.asleep ? wake : tuckIn, () => (pet.asleep ? `${pet.name} blinks awake.` : `You tuck ${pet.name} in under a leaf blanket.`))
   const onGive = (item: Collectible) => run((p, t) => give(p, item, t), () => `You give ${pet.name} a ${ITEMS[item].label.toLowerCase()}. It turns it over and over.`)
+  const onTidy = () => run(tidy, () => (pet.messes.length > 1 ? 'Swept up. A little more to go…' : 'All tidy! The burrow smells of fresh moss.'))
+  const onSettle = () => run(settle, () => `“There, there. Not now.” ${pet.name} huffs… then leans against you.`)
+  const onPlay = () => {
+    if (pet.asleep) return say(REFUSAL_LINES.asleep, false)
+    if (pet.needs.rest < PLAY_MIN_REST) return say(REFUSAL_LINES.tooTired, false)
+    setMenu('play')
+  }
+  const onPlayDone = (startedAt: number, guesses: HideSpot[]) =>
+    run(
+      (p, t) => playHideAndSeek(p, startedAt, guesses, t),
+      (r) => `You found ${pet.name} ${r.score} of ${PLAY_ROUNDS} times.${(r.score ?? 0) < PLAY_WIN_AT ? ' Sneaky! Maybe it has a favourite spot…' : ''}`,
+    )
   const onSpore = () => {
     if (trailStep < TRAIL.length - 1) return setTrailStep(trailStep + 1)
     setTrailStep(0)
     run(findMossling, () => `You find ${pet.name} curled up under a fern. It sniffles, then hugs your finger. It found you a glowcap!`)
   }
 
-  const bubble = showReaction ? reaction.text : withName(pet.name, pick(MOOD_LINES[mood], now))
   const busy = mood === 'away' || mood === 'walking' || mood === 'atDoor'
+  const call = pet.call && !busy && !pet.asleep ? pet.call : null
+  const callLine = !call
+    ? null
+    : call.kind === 'need'
+      ? `${pet.name} is calling you! ${CALL_LINES[call.need]}`
+      : withName(pet.name, FUSS_LINES[call.want])
+  const bubble = showReaction ? reaction.text : (callLine ?? withName(pet.name, pick(MOOD_LINES[mood], now)))
   const today = dayIndex(now)
   const wish = pet.wish && pet.wish.day === today ? pet.wish : null
-  const title = [STAGE_LABELS[pet.stage], pet.form && FORM_LABELS[pet.form]].filter(Boolean).join(' ')
+  const title = [STAGE_LABELS[pet.stage], pet.coat && COAT_LABELS[pet.coat], pet.form && FORM_LABELS[pet.form]].filter(Boolean).join(' ')
 
   return (
     <div className="app">
@@ -219,11 +263,22 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
       </header>
 
       <Scene now={now} night={night} season={season} weather={weather} showDoorOpen={mood === 'atDoor' || mood === 'walking'}>
-        {face && (
+        {face && menu !== 'play' && (
           <div className={`creature-spot stage-${pet.stage} ${mood === 'atDoor' ? 'at-door' : ''} ${showReaction && reaction.happy ? 'bounce' : ''}`}>
-            <CreatureArt face={face} bundle={mood === 'atDoor'} stage={pet.stage} form={pet.form} />
+            <CreatureArt face={face} bundle={mood === 'atDoor'} stage={pet.stage} form={pet.form} coat={pet.coat} />
+            {call && (
+              <span className="call-badge" aria-hidden>
+                ! <span>{CALL_ICONS[call.kind === 'need' ? call.need : call.want]}</span>
+              </span>
+            )}
           </div>
         )}
+        {mood !== 'away' &&
+          pet.messes.map((m, i) => (
+            <button key={m.at + '-' + i} className="mess" style={MESS_SPOTS[i]} onClick={onTidy} aria-label="Tidy up the moss fluff">
+              <MossFluff />
+            </button>
+          ))}
         {mood === 'away' &&
           TRAIL.slice(0, trailStep + 1).map((pos, i) => (
             <button
@@ -253,6 +308,8 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
         </p>
       )}
 
+      <GrowingUp pet={pet} now={now} />
+
       <Meters pet={pet} dim={mood === 'away'} />
 
       <section className="actions">
@@ -267,15 +324,23 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
             Collect finds
           </button>
         )}
+        {!busy && menu === null && call && (
+          <button className="settle wide" onClick={onSettle}>
+            “There, there. Not now.”
+            <small>for fussing — not for real needs</small>
+          </button>
+        )}
         {!busy && menu === null && (
           <div className="action-row">
             <button onClick={() => setMenu('feed')}>Feed</button>
             <button onClick={onHug}>Hug</button>
             <button onClick={() => setMenu('story')}>Story</button>
+            <button onClick={onPlay}>Play</button>
             <button onClick={() => setMenu('walk')}>Walk</button>
             <button onClick={onBed}>{pet.asleep ? 'Wake' : 'Bed'}</button>
           </div>
         )}
+        {!busy && menu === 'play' && <HideAndSeek pet={pet} onDone={onPlayDone} onClose={() => setMenu(null)} />}
         {!busy && menu === 'feed' && (
           <SubMenu onClose={() => setMenu(null)}>
             {FOOD_KINDS.map((f) => {
@@ -338,6 +403,83 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
         />
       )}
     </div>
+  )
+}
+
+function MossFluff() {
+  return (
+    <svg viewBox="0 0 40 28" aria-hidden>
+      <g stroke="#3b3a33" strokeWidth={1.2} strokeOpacity={0.6}>
+        <ellipse cx={20} cy={22} rx={16} ry={4} fill="#000" opacity={0.12} stroke="none" />
+        <circle cx={12} cy={17} r={7} fill="#a08a5c" />
+        <circle cx={25} cy={16} r={8} fill="#8c7a50" />
+        <circle cx={19} cy={10} r={6} fill="#9fae72" />
+        <path d="M8 6 l3 4 M31 5 l-2 4 M16 20 l5 -3" fill="none" stroke="#5b4630" strokeOpacity={1} />
+      </g>
+    </svg>
+  )
+}
+
+/**
+ * Hide-and-seek, three quick rounds. Where it hides is fixed when the game
+ * starts (core `hidingSpots`), and the score is checked again in core.
+ */
+function HideAndSeek({ pet, onDone, onClose }: { pet: Pet; onDone: (startedAt: number, guesses: HideSpot[]) => void; onClose: () => void }) {
+  const [startedAt] = useState(() => clock.now())
+  const [guesses, setGuesses] = useState<HideSpot[]>([])
+  const spots = hidingSpots(pet.id, startedAt)
+  const round = guesses.length
+  const last = round > 0 ? { guess: guesses[round - 1], spot: spots[round - 1] } : null
+  const look = (spot: HideSpot) => {
+    const next = [...guesses, spot]
+    if (next.length === PLAY_ROUNDS) onDone(startedAt, next)
+    else setGuesses(next)
+  }
+  return (
+    <div className="hide-seek">
+      <p className="hint">
+        {last
+          ? last.guess === last.spot
+            ? `Found ${pet.name} ${SPOT_LABELS[last.spot].where}! `
+            : `Not there… it was ${SPOT_LABELS[last.spot].where}. `
+          : `${pet.name} covers its eyes… then runs off to hide. `}
+        Round {round + 1} of {PLAY_ROUNDS}: where is it?
+      </p>
+      <p className="score" aria-label={`Found ${guesses.filter((g, i) => g === spots[i]).length} times`}>
+        {spots.map((s, i) => (
+          <span key={i} className={i < round ? (guesses[i] === s ? 'hit' : 'miss') : ''} />
+        ))}
+      </p>
+      <div className="sub-menu">
+        {HIDE_SPOTS.map((spot) => (
+          <button key={spot} className="spot" onClick={() => look(spot)}>
+            <span aria-hidden className="spot-icon">
+              {SPOT_LABELS[spot].icon}
+            </span>
+            {SPOT_LABELS[spot].label}
+          </button>
+        ))}
+        <button className="ghost" onClick={onClose}>
+          Stop playing
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** While it is still growing: when it grows up next, and which coat its care is heading for. */
+function GrowingUp({ pet, now }: { pet: Pet; now: number }) {
+  const next = STAGES[STAGES.indexOf(pet.stage) + 1]
+  if (next !== 'young' && next !== 'grown') return null
+  const days = Math.max(1, Math.ceil(STAGE_STARTS_AT_DAY[next] - (now - pet.bornAt) / DAY))
+  const coat = coatFor(pet.care, next)
+  return (
+    <p className="growing">
+      <span aria-hidden>🌱</span> Grows up in {days} {days === 1 ? 'day' : 'days'}, with {COAT_HINTS[coat]} so far.
+      <small>
+        Missed calls &amp; messes: {pet.care.mistakes} · Manners: {pet.care.manners}
+      </small>
+    </p>
   )
 }
 
@@ -414,6 +556,7 @@ function Journal({ pet, onHemisphere }: { pet: Pet; onHemisphere: () => void }) 
     pet.known.dislikedFood && `Can’t stand ${FOOD_LABELS[prefs.dislikedFood].toLowerCase()}`,
     pet.known.favoriteStory && `Favourite story: ${STORIES[prefs.favoriteStory]}`,
     pet.known.favoriteItem && `Treasures every ${ITEMS[prefs.favoriteItem].label.toLowerCase()}`,
+    pet.known.favoriteSpot && `Always hides ${SPOT_LABELS[prefs.favoriteSpot].where}`,
   ].filter(Boolean) as string[]
   const nextLevel = BOND_LEVELS[bondLevel(pet.bond) + 1]
   return (

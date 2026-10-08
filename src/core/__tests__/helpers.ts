@@ -1,4 +1,4 @@
-import { collectFinds, createPet, DAY, feed, hug, simulate, stageAt, wake, type Pet, type Season, type Stage } from '../index'
+import { collectFinds, createPet, DAY, feed, hug, settle, simulate, stageAt, tidy, wake, type Pet, type Season, type Stage } from '../index'
 
 // Tests run with TZ=UTC (see package.json), so local time == UTC.
 /** Local timestamp in 2026; month is 1-based. */
@@ -36,12 +36,17 @@ function repeat(p: Pet, cond: (p: Pet) => boolean, act: (p: Pet) => ReturnType<t
   return p
 }
 
-/** A visit using only the free things: porridge and hugs. */
+/**
+ * A visit using only the free things: porridge and hugs. It also does the
+ * chores a caring player does: tidies every mess and says "not now" to a fuss.
+ */
 export function basicVisit(pet: Pet, now: number): Pet {
   let p = simulate(pet, now)
   if (p.asleep) p = wake(p, now).pet
   if (p.activity) p = collectFinds(p, now).pet
+  p = repeat(p, (p) => p.messes.length > 0, (p) => tidy(p, now))
   p = repeat(p, (p) => p.needs.fullness < 95, (p) => feed(p, 'porridge', now))
   p = repeat(p, (p) => p.needs.warmth < 95 || p.needs.companionship < 90, (p) => hug(p, now))
+  if (p.call?.kind === 'fuss') p = settle(p, now).pet
   return p
 }

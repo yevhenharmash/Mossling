@@ -1,13 +1,17 @@
 import {
   ITEMS,
   STORIES,
+  type Coat,
   type Destination,
   type Food,
   type Form,
+  type FussWant,
   type Highlight,
+  type HideSpot,
   type ItemKind,
   type JournalEntry,
   type Mood,
+  type NeedKey,
   type Refusal,
   type Season,
   type Stage,
@@ -34,6 +38,7 @@ export const MOOD_LINES: Record<Mood, string[]> = {
   sleepy: ['Yawns so wide it nearly tips over.', 'Can barely keep its eyes open.'],
   lonely: ['Sits very still, looking at the path.', 'Wonders where everyone has gone.'],
   sniffly: ['Sniffles. A cup of pine tea would help.', 'Sneezes a tiny cloud of spores.'],
+  fussy: ['Is fussing and whining. Is something really wrong, or is it just fussing?'],
   asleep: ['Is fast asleep. Tiny moss-snores.', 'Dreams of rain on leaves.'],
   walking: ['Is out exploring.'],
   atDoor: ['Is back, holding a bundle of treasures for you!'],
@@ -60,6 +65,44 @@ export const DESTINATION_LABELS: Record<Destination, string> = {
   oldWoods: 'Old Woods',
 }
 
+/** A real need calling: "Moss is calling you! …" */
+export const CALL_LINES: Record<NeedKey, string> = {
+  fullness: 'Its tummy is rumbling.',
+  warmth: 'It is shivering.',
+  rest: 'It can barely keep its eyes open. Tuck it in?',
+  companionship: 'It misses you.',
+}
+
+/** A fuss. These sound just as urgent on purpose: check the meters. */
+export const FUSS_LINES: Record<FussWant, string> = {
+  treat: 'Whines and points at the pantry. Treat! Treat!',
+  play: 'Tugs at your sleeve. Play! Play now!',
+  walk: 'Stamps its feet by the door. Out! Out!',
+}
+
+export const CALL_ICONS: Record<NeedKey | FussWant, string> = {
+  fullness: '🥣',
+  warmth: '🔥',
+  rest: '🌙',
+  companionship: '🤍',
+  treat: '🫐',
+  play: '🍄',
+  walk: '🥾',
+}
+
+export const SPOT_LABELS: Record<HideSpot, { label: string; icon: string; where: string }> = {
+  stump: { label: 'Stump', icon: '🪵', where: 'behind the stump' },
+  fern: { label: 'Fern', icon: '🌿', where: 'in the ferns' },
+  mushroom: { label: 'Mushroom', icon: '🍄', where: 'under the big mushroom' },
+}
+
+export const COAT_LABELS: Record<Coat, string> = { glossy: 'Glossy', mossy: 'Mossy', wild: 'Wild' }
+export const COAT_HINTS: Record<Coat, string> = {
+  glossy: 'a glossy, sparkly coat',
+  mossy: 'a soft mossy coat',
+  wild: 'a wild, tufty coat',
+}
+
 export const STAGE_LABELS: Record<Stage, string> = { sprout: 'Sprout', young: 'Young', grown: 'Grown', elder: 'Elder' }
 export const FORM_LABELS: Record<Form, string> = { wanderer: 'Wanderer', dreamer: 'Dreamer', foodie: 'Foodie', homebody: 'Homebody' }
 export const SEASON_LABELS: Record<Season, string> = { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter' }
@@ -76,7 +119,7 @@ export const REFUSAL_LINES: Record<Refusal, string> = {
   awake: 'It’s already awake.',
   full: 'It pats its round tummy. Too full!',
   notSleepy: 'It wriggles out of the blanket. Not sleepy!',
-  tooTired: 'Too tired for that walk right now.',
+  tooTired: 'Too tired for that right now.',
   tooDark: 'Too dark for walks. The forest is asleep.',
   noWalk: 'Nothing to collect.',
   noFood: 'The pantry’s out of that. A walk might turn some up.',
@@ -87,6 +130,10 @@ export const REFUSAL_LINES: Record<Refusal, string> = {
   noItem: 'You don’t have one of those.',
   notGift: 'That’s for the pantry, not a present.',
   noStory: 'You can’t remember that one.',
+  noMess: 'All tidy already.',
+  noCall: 'It isn’t asking for anything right now.',
+  reallyNeeds: 'It really does need that! Check its meters.',
+  noGame: 'Let’s start a new game.',
 }
 
 export const HIGHLIGHT_LINES: Record<Highlight, string> = {
@@ -94,6 +141,11 @@ export const HIGHLIGHT_LINES: Record<Highlight, string> = {
   wish: '💭 Wish granted!',
   cured: 'No more sniffles.',
   firstWalk: 'Its very first walk!',
+  answered: '✓ You came when it called.',
+  settled: '🌿 Good manners!',
+  gaveIn: 'It got its way by fussing… hmm.',
+  won: '🎉 You won!',
+  fussing: 'Uh-oh — now it’s whining about something.',
 }
 
 export function wishText(w: Wish): string {
@@ -108,6 +160,8 @@ export function wishText(w: Wish): string {
       return FOOD_LABELS[w.food!].toLowerCase()
     case 'walk':
       return `a walk to the ${DESTINATION_LABELS[w.destination!]}`
+    case 'play':
+      return 'a game of hide-and-seek'
   }
 }
 
@@ -131,6 +185,7 @@ export function journalText(e: JournalEntry, name: string): string {
       if (what === 'favoriteFood') return `${name} loves ${FOOD_LABELS[value as Food].toLowerCase()}!`
       if (what === 'dislikedFood') return `${name} can’t stand ${FOOD_LABELS[value as Food].toLowerCase()}.`
       if (what === 'favoriteStory') return `Favourite story: ${STORIES[Number(value)]}.`
+      if (what === 'favoriteSpot') return `${name} always hides ${SPOT_LABELS[value as HideSpot].where}.`
       return `${name} treasures every ${itemName(value)}.`
     }
     case 'sniffles':
@@ -147,6 +202,8 @@ export function journalText(e: JournalEntry, name: string): string {
       return `First snow! ${name} tried to catch a flake.`
     case 'bond':
       return `Your bond grew to ♥${d}.`
+    case 'coat':
+      return `${name} grew ${COAT_HINTS[d as Coat]}.`
   }
 }
 

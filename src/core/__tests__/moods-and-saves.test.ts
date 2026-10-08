@@ -10,8 +10,11 @@ import {
   moodOf,
   newSave,
   parseSave,
+  playHideAndSeek,
   setHemisphere,
+  settle,
   simulate,
+  tidy,
   startWalk,
   tellStory,
   tuckIn,
@@ -33,6 +36,7 @@ const SCENARIOS = {
   atDoor: (p) => ({ ...p, activity: { kind: 'walk', destination: 'meadow', startedAt: NOW - 30 * MINUTE, endsAt: NOW - MINUTE, finds: [] } }),
   asleep: (p) => ({ ...p, asleep: 'tucked' }),
   sniffly: (p) => ({ ...p, sniffles: { since: NOW } }),
+  fussy: (p) => ({ ...p, call: { kind: 'fuss', want: 'treat', since: NOW, until: NOW + MINUTE } }),
   delighted: (p) => ({ ...p, delightUntil: NOW + MINUTE }),
   hungry: needs({ fullness: 20 }),
   cold: needs({ warmth: 20 }),
@@ -70,10 +74,18 @@ describe('actions never mutate the pet you pass in', () => {
     walk: (p) => startWalk(p, 'meadow', NOW),
     collect: (p) => collectFinds(p, NOW + 60 * MINUTE),
     find: (p) => findMossling(p, NOW),
+    tidy: (p) => tidy(p, NOW),
+    settle: (p) => settle(p, NOW),
+    play: (p) => playHideAndSeek(p, NOW, ['stump', 'stump', 'stump'], NOW),
     hemisphere: (p) => setHemisphere(p, 'south', NOW),
   }
   it.each(Object.keys(actions))('%s', (name) => {
-    const p: Pet = { ...base(), inventory: { ...base().inventory, pebble: 2 } }
+    const p: Pet = {
+      ...base(),
+      inventory: { ...base().inventory, pebble: 2 },
+      messes: [{ at: NOW - MINUTE, late: false }],
+      call: { kind: 'fuss', want: 'play', since: NOW - MINUTE, until: NOW + MINUTE },
+    }
     const walking = startWalk(p, 'meadow', NOW).pet
     for (const subject of [p, walking, SCENARIOS.away(p)]) {
       const snapshot = JSON.stringify(subject)
@@ -93,7 +105,7 @@ describe('hemisphere setting', () => {
 })
 
 describe('saves', () => {
-  it('round-trips v2 and rejects garbage', () => {
+  it('round-trips the current version and rejects garbage', () => {
     const save = newSave(base())
     expect(parseSave(JSON.stringify(save))).toEqual(save)
     expect(parseSave(null)).toBeNull()
@@ -124,7 +136,7 @@ describe('saves', () => {
       ],
     }
     const save = parseSave(JSON.stringify(v1))!
-    expect(save.version).toBe(2)
+    expect(save.version).toBe(3)
     const pet = save.pets[0]
     expect(pet).toMatchObject({ id: 'old-1', name: 'Pip', bornAt: born, stage: 'young', form: 'homebody' })
     expect(pet.needs).toEqual(v1.pets[0].needs)
@@ -135,5 +147,21 @@ describe('saves', () => {
     const later = simulate(pet, pet.simulatedTo + 6 * 60 * MINUTE)
     expect(later.activity).toBeNull()
     expect(later.inventory.pebble).toBe(3)
+    expect(later.coat).toBe('mossy')
+  })
+
+  it('migrates a v2 save: care starts fresh, and it keeps living', () => {
+    const current = base()
+    // A v2 pet is a v3 pet without the care fields and the new daily counters.
+    const { coat, care, call, missedNeeds, messes, messClock, visitAt, fussRolled, ...v2pet } = current
+    const v2 = { version: 2, activePetId: current.id, pets: [{ ...v2pet, daily: { day: current.daily.day, goodDay: true, walkBonds: 1, favorites: [] } }] }
+    const save = parseSave(JSON.stringify(v2))!
+    expect(save.version).toBe(3)
+    const pet = save.pets[0]
+    expect(pet).toMatchObject({ coat: 'mossy', care: { mistakes: 0, manners: 0 }, call: null, messes: [], missedNeeds: [] })
+    expect(pet.daily).toMatchObject({ goodDay: true, walkBonds: 1, mistakes: 0, fusses: 0, playWon: false })
+    const later = basicVisit(simulate(pet, NOW + 12 * 60 * MINUTE), NOW + 12 * 60 * MINUTE)
+    expect(later.messes).toEqual([])
+    expect(later.needs.fullness).toBeGreaterThan(90)
   })
 })

@@ -21,6 +21,7 @@ import {
   hug,
   lootTable,
   moodOf,
+  playHideAndSeek,
   preferencesOf,
   reachableDestinations,
   rollFinds,
@@ -159,6 +160,7 @@ describe('daily wish', () => {
     gift: (p) => give({ ...p, inventory: { ...p.inventory, pebble: 1 } }, 'pebble', NOON),
     food: (p, w) => feed({ ...hungry(p), inventory: { berries: 3, mushroom: 3, pineNeedles: 3 } }, w.food!, NOON),
     walk: (p, w) => startWalk(p, w.destination!, NOON),
+    play: (p) => playHideAndSeek(p, NOON, ['stump', 'fern', 'mushroom'], NOON),
   }
 
   it.each(Object.keys(grant) as Wish['kind'][])('a %s wish, granted, gives bond + delight once', (kind) => {

@@ -3,6 +3,7 @@ import { NEED_KEYS } from './types'
 import { dayIndex, isNight, seasonAt, weatherAt } from './calendar'
 import { bondLevel, dominantForm, stageAt } from './growth'
 import { rollWish } from './prefs'
+import { checkCare, coatFor, emptyCare, makeMesses } from './care'
 import {
   AWAY_STEP,
   BEDTIME_IDLE,
@@ -46,6 +47,10 @@ export function clonePet(p: Pet): Pet {
     inventory: { ...p.inventory },
     activity: p.activity ? { ...p.activity, finds: [...p.activity.finds] } : null,
     traits: { ...p.traits },
+    care: { ...p.care },
+    call: p.call ? { ...p.call } : null,
+    missedNeeds: [...p.missedNeeds],
+    messes: p.messes.map((m) => ({ ...m })),
     sniffles: p.sniffles ? { ...p.sniffles } : null,
     known: { ...p.known },
     wish: p.wish ? { ...p.wish } : null,
@@ -115,6 +120,10 @@ export function needRates(p: Pet, t: number): Needs {
   return r
 }
 
+export function newDaily(day: number): Pet['daily'] {
+  return { day, goodDay: false, walkBonds: 0, favorites: [], mistakes: 0, fusses: 0, playWon: false }
+}
+
 /** Calendar bookkeeping that runs even while it is away: new day, season, growth. */
 export function syncCalendar(p: Pet, t: number): void {
   const season = seasonAt(t, p.hemisphere)
@@ -131,20 +140,29 @@ export function syncCalendar(p: Pet, t: number): void {
   if (stage !== p.stage) {
     p.stage = stage
     journal(p, t, 'stage', stage)
-    // Personality settles when it becomes young, and again when grown.
+    // Personality settles when it becomes young, and again when grown;
+    // the coat shows how it was looked after in the stage before.
     if (stage === 'young' || stage === 'grown') {
       const form = dominantForm(p.traits)
       if (form !== p.form) {
         p.form = form
         journal(p, t, 'form', form)
       }
+      const coat = coatFor(p.care, stage)
+      if (coat !== p.coat) {
+        p.coat = coat
+        journal(p, t, 'coat', coat)
+      }
     }
+    p.care = emptyCare()
   }
 
   // Rolled after growth so a walk wish only names places it can reach today.
   const day = dayIndex(t)
   if (p.daily.day !== day) {
-    p.daily = { day, goodDay: false, walkBonds: 0, favorites: [] }
+    // A good day without a single care mistake mends an earlier one.
+    if (p.daily.goodDay && p.daily.mistakes === 0 && p.care.mistakes > 0) p.care.mistakes -= 1
+    p.daily = newDaily(day)
     p.wish = rollWish(p, day)
   }
 }
@@ -177,6 +195,7 @@ function step(p: Pet, from: number, to: number): void {
   const rates = needRates(p, from)
   const hours = (to - from) / HOUR
   for (const k of NEED_KEYS) p.needs[k] = clampNeed(p.needs[k] + rates[k] * hours)
+  makeMesses(p, from, to)
 
   // A long cold spell brings on the sniffles.
   if (p.needs.warmth <= CHILL_LINE) {
@@ -196,8 +215,10 @@ function step(p: Pet, from: number, to: number): void {
   if (p.lonelySince !== null && to - p.lonelySince >= patience && !p.activity) {
     p.wanderedOffAt = to
     p.asleep = null
+    p.call = null
     journal(p, to, 'wandered')
   }
+  checkCare(p, to)
 }
 
 /** Next scheduled event strictly after `t`, so steps never straddle one. */

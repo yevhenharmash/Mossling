@@ -6,7 +6,8 @@ A cozy, Moomin-*inspired* virtual pet: a tiny moss spirit that lives on real tim
 npm install
 npm run dev      # http://localhost:5173 — dev builds show a "time travel" panel
 npm test         # simulation tests: calendar, rate modifiers, pacing in every season × stage,
-                 # growth & personality, absence, systems (pantry, wishes, bond, walks, sniffles), moods, saves
+                 # growth & personality, absence, systems (pantry, wishes, bond, walks, sniffles),
+                 # care (calls, fussing, messes, coats, hide-and-seek), moods, saves
 npm run build    # typecheck + production build into dist/
 ```
 

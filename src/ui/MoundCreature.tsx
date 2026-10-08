@@ -2,7 +2,7 @@ import type { Face } from './Creature'
 
 // The first prototype look: a mossy mound. Kept as a dev toggle for comparison.
 
-type Props = { face: Face; bundle?: boolean; stage?: unknown; form?: unknown }
+type Props = { face: Face; bundle?: boolean; stage?: unknown; form?: unknown; coat?: unknown }
 
 const INK = '#22301f'
 const MOUND = 'M14 98 C14 52 34 27 60 27 C86 27 106 52 106 98 Q60 108 14 98 Z'
