@@ -1,6 +1,8 @@
 # Mossling — Game Design Doc (draft v0.4)
 
-> Status: **draft v0.4**. Decisions are in §13; the game systems are in §5–§8. v0.4 adds the care loop borrowed from the original Tamagotchi (§6.9–§6.10). All numbers are tunable; they live in `src/core/tuning.ts`.
+> Status: **draft v0.4**. Decisions are in §13; the game systems are in §5–§8. v0.4 adds the care loop borrowed from the original Tamagotchi (§6.9–§6.10).
+>
+> **Next: v0.5 plan in §15.** Copy the original Tamagotchi's rules, including real death, and fix its gaps. Where §15 conflicts with earlier sections, §15 is the direction; the earlier sections describe what is built today. All numbers are tunable; they live in `src/core/tuning.ts`.
 
 ## 1. Pitch
 
@@ -219,15 +221,110 @@ Goal: build for the web first, then reuse the same code in native apps.
 ## 13. Decisions (2026-10-07)
 
 1. **Art style:** good-looking but not fancy. Soft vector/SVG shapes with gentle gradients and simple CSS/SVG animation. No pixel art, no heavy illustration.
-2. **Losing the pet:** yes. It wanders off after long neglect and **always** comes back once you find it.
+2. **Losing the pet:** yes. It wanders off after long neglect and **always** comes back once you find it. _Superseded by decision 8 (planned in §15): it can die._
 3. **Notifications:** gentle, at most one or two a day. Built after the MVP.
 4. **Pace:** a normal day needs about **2–4 check-ins**. Supervised activities (e.g. a walk) invite extra visits, but missing them is never punished. The Mossling just comes home on its own with fewer finds.
 5. **Pets:** one Mossling for now. The save format stores a list of pets so more can be added later.
 6. **Platform:** web first (Vite + React + TypeScript). Capacitor wraps the same build for iOS/Android later with no rewrite. The pet simulation lives in `src/core/` as pure TypeScript, so a different UI layer could reuse it.
-7. **Challenge (2026-10-08):** borrow the original Tamagotchi's care loop (calls, false calls, droppings, a play mini-game, care-driven evolution). Consequences change what it **becomes**, never whether it lives. Not borrowed: death, sickness from droppings, weight, beeping.
+7. **Challenge (2026-10-08):** borrow the original Tamagotchi's care loop (calls, false calls, droppings, a play mini-game, care-driven evolution). Consequences change what it **becomes**, never whether it lives. Not borrowed: death, sickness from droppings, weight, beeping. _Superseded by decision 8._
+8. **High stakes (2026-10-08):** copy the original Tamagotchi's rules rather than inventing our own: real death, a natural lifespan, sickness, discipline, a named evolution chart. Keep every hook it had, and fix every downside it had. Plan in §15.
 
 ## 14. Open questions
 
 - Exact tuning after real playtesting (all numbers live in `tuning.ts`).
 - Legacy (§8) would turn the 12 looks into a collection across generations ("which ones have you raised?"). That's the natural next hook.
 - Notifications could say "Pip is calling you" for need calls only, never for fusses.
+
+## 15. Plan v0.5: copy the original Tamagotchi, minus its downsides _(planned, not built)_
+
+**Principle:** don't invent much. Copy the original's rules and hooks as they were, and only change what was a known downside of the original. Every change below names the downside it fixes.
+
+### 15.1 What the original (1996) did
+
+- **Meters:**
+  - Hunger and Happy, 4 hearts each.
+  - Discipline, 0–100%.
+  - Age and Weight.
+- **Food:**
+  - A meal fills Hunger.
+  - A snack gives +1 Happy and +weight. Overeating snacks could make it sick.
+- **Game:**
+  - Guess left or right, 5 rounds. Winning 3 or more gives +1 Happy.
+  - Playing always burns a little weight.
+- **Poop:** appears every few hours (more often when young), up to 4 at once. Leaving it makes the pet sick.
+- **Sickness:**
+  - A skull icon. You give medicine, sometimes several doses.
+  - It also gets sick about once per growth stage at random.
+  - Sick too long, it dies.
+- **Sleep:** it falls asleep at its bedtime (8–11 pm), and you must turn the lights off.
+- **Calls and care mistakes (the core hook):**
+  - When a meter empties or at bedtime, it beeps.
+  - Not answered within **15 minutes** = a **care mistake**.
+- **False calls:**
+  - Sometimes it beeps with everything full and refuses food and play.
+  - Scolding it gives +25% discipline (4 scolds = 100%).
+  - Ignoring a false call is not a care mistake.
+- **Growth:**
+  - Egg → baby (~5 min) → child (~1 h) → teen at about age 3 → adult at about age 6. Age goes up by 1 each time it wakes.
+  - **Child stage:** 0–1 mistakes → the good teen (Tamatchi); 2+ → the other teen (Kuchitamatchi).
+  - **Teen stage:** care mistakes and discipline pick **1 of 6 adults**.
+    - Mametchi needs 0 discipline mistakes and fewer than 3 care mistakes.
+    - Kuchipatchi, Nyorotchi and Tarakotchi come from 3+ care mistakes.
+  - **Secret character:** Oyajitchi, from Maskutchi with 0% discipline, kept alive to age 10.
+  - Chasing the best adult ("I got Mametchi!") was a big part of the hook.
+- **Death:**
+  - **Inevitable.** Average lifespan about 12 days, maximum about 28.
+  - **Every care mistake shortens its life.** Starving or untreated sickness kills it sooner.
+  - Japanese versions showed a ghost and headstone; English ones an angel. You pressed a button combo to hatch a new egg.
+
+### 15.2 The original's downsides (the things we fix)
+
+1. **It could die in under half a day.** That was too fast to survive a school day.
+2. **It needed constant attention.** The 15-minute windows and beeping meant kids took it to school, and schools banned it.
+3. **No pause** (later versions added one).
+4. **Hidden rules.** You never knew why you got a "bad" adult, or how close it was to dying.
+5. **Shallow and repetitive.** After the first few runs there was nothing new to discover.
+6. **Death could come as a shock,** with little warning and no time to save it.
+
+### 15.3 The plan: original rule → Mossling rule
+
+| Original | Mossling | Fixes downside |
+|---|---|---|
+| Hunger, Happy, Discipline, Age, Weight | Keep our 4 needs (they already cover Hunger and Happy). **Add Discipline (0–100%)** and age in days | — |
+| Beeping call, 15-min window → care mistake | Calls as built (§6.9), with a **2 h** window. Shorten it once gentle notifications exist | 2 |
+| Bedtime: turn the lights off | **Bedtime call:** at its bedtime it asks to be tucked in. Not answered in time = a care mistake | — |
+| False calls; scold → +25% discipline | Fussing as built. **"Not now" → +25% discipline.** Giving in → no discipline. Ignoring it → a *discipline mistake* (affects evolution, not lifespan) | — |
+| Poop → sickness | Moss fluff → **chance of sickness** if left lying around | — |
+| Sickness, medicine doses, can kill | Sniffles **no longer heal by themselves**. **Medicine**, 1–3 doses. Sick and untreated for about **24 h** → it dies | 1, 6 |
+| Hunger at 0 too long → death | Any need at the floor for about **24 h** → it dies. With 2 visits a day this can never happen | 1, 2 |
+| Natural lifespan (~12 average, ~28 max); mistakes shorten it | **Lifespan about 30 days with perfect care, minus about 1 day per care mistake.** Elders die of old age | — |
+| Child → 2 teens → 6 adults + 1 secret, by mistakes and discipline | **A named character chart using the original's own rules.** Original Mossling names and looks, not Bandai's; this replaces the coats. Play-style forms can stay as accessories | 5 (personality on top) |
+| Hidden stats | **Show the stakes:** care mistakes, discipline, "on track for…", and a health warning | 4, 6 |
+| Death with no warning | **Fading first:** when close to death it looks pale and droopy, says so, and shows a warning. Still savable until the end | 6 |
+| Ghost or angel → new egg | A small spirit and a **mossy gravestone** with its name, age, character and journal. Then **plant a new spore**. A gravestone gallery keeps every Mossling you raised | — |
+| No pause | **Sleepover (pause):** a limited pause for days you can't play (exact limit to be decided) | 2, 3 |
+| Left/right game | Hide-and-seek (already built, same idea) | — |
+| Snacks → weight → sickness | **Not copied by default.** Weight was a side mechanic, not a hook. Can be added later | — |
+| — | **Wandering off is removed.** Death replaces it | — |
+| One run, then repeat | **The character chart becomes a collection** across generations ("which ones have you raised?"). The gravestone gallery is the record | 5 |
+
+### 15.4 The pacing contract (unchanged, still tested)
+
+- **2 visits a day** (8:00 and 19:00, plus a bedtime tuck-in) → no care mistakes, never sick from neglect, never dies early. The best characters are reachable.
+- **1 visit a day** → mistakes, worse characters, a shorter life, but it survives.
+- **No visits for about a day** → sick and fading.
+- **About 2 days with no care** → it dies.
+
+### 15.5 Open numbers to confirm before building
+
+- Time to death from neglect or sickness: **about 24 h** proposed.
+- Lifespan: **about 30 days**, and **about 1 day lost per mistake**.
+- Weight: **not copied**, proposed.
+- Sleepover pause limits.
+- The character names and looks for the 2 teens, 6 adults and 1 secret.
+
+Sources:
+- [Wikipedia: Tamagotchi](https://en.wikipedia.org/wiki/Tamagotchi)
+- [Thaao's P1 care guide](https://thaao.net/tama/p1/)
+- [TamaTalk P1/P2 evolution guide](https://www.tamatalk.com/threads/tamagotchi-p1-p2-evolution-guide.200023/)
+- [TamaVault: Gen 1](https://tamavault.com/devices/original-gen1/)
