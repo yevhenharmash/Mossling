@@ -1,177 +1,125 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  BOND_LEVELS,
-  COLLECTIBLES,
+  BABY_GROWS_AFTER,
   DAY,
-  DESTINATION_INFO,
-  DESTINATIONS,
-  FOOD_KINDS,
-  FOODS,
-  HIDE_SPOTS,
+  GAME_ROUNDS,
   HOUR,
-  ITEMS,
-  PANTRY_ITEMS,
-  PLAY_MIN_REST,
-  PLAY_ROUNDS,
-  PLAY_WIN_AT,
-  STAGE_STARTS_AT_DAY,
-  STAGES,
-  STORIES,
-  ageInDays,
-  bondLevel,
-  coatFor,
-  collectFinds,
-  dayIndex,
-  feed,
-  findMossling,
-  give,
-  hidingSpots,
-  hug,
-  isNight,
-  moodOf,
-  playHideAndSeek,
-  preferencesOf,
-  seasonAt,
-  setHemisphere,
-  settle,
-  startWalk,
-  storyCards,
-  tellStory,
-  tidy,
-  tuckIn,
-  wake,
-  walkBlocker,
-  weatherAt,
+  MAX_HEARTS,
+  SPORE_HATCHES_AFTER,
+  clean,
+  deathRisk,
+  endSleepover,
+  gameSides,
+  hearts,
+  isFading,
+  isLastDay,
+  lifespan,
+  lights,
+  meal,
+  medicine,
+  nextCharacter,
+  nextStepAge,
+  play,
+  scold,
+  snack,
+  snacksLeft,
+  startSleepover,
   type ActionResult,
-  type Collectible,
-  type Destination,
-  type Food,
-  type HideSpot,
-  type ItemKind,
-  type Mood,
-  type NeedKey,
+  type Grave,
   type Pet,
+  type Side,
 } from '../core'
 import { Creature, type Face } from './Creature'
-import { MoundCreature } from './MoundCreature'
-import { careFor } from './devCare'
 import { clock } from './clock'
-import {
-  CALL_ICONS,
-  CALL_LINES,
-  COAT_HINTS,
-  COAT_LABELS,
-  DESTINATION_LABELS,
-  FOOD_LABELS,
-  FOOD_LINES,
-  FORM_LABELS,
-  FUSS_LINES,
-  HIGHLIGHT_LINES,
-  MOOD_LINES,
-  REFUSAL_LINES,
-  SEASON_ICONS,
-  SEASON_LABELS,
-  SPOT_LABELS,
-  STAGE_LABELS,
-  WEATHER_ICONS,
-  WEATHER_LABELS,
-  journalText,
-  pick,
-  wishText,
-  withName,
-} from './lines'
+import { CALL_LINES, CHARACTER_INFO, DEATH_LINES, NOTE_LINES, REFUSAL_LINES, RISK_LINES, duration, withName } from './lines'
 import { Scene } from './Scene'
 import { useGame } from './useGame'
 
+type Game = ReturnType<typeof useGame>
 type Reaction = { text: string; happy: boolean; until: number }
-type Menu = 'feed' | 'story' | 'walk' | 'play' | null
-type Look = 'troll' | 'mound'
 
 const REACTION_MS = 4500
-const LOOK_KEY = 'mossling.look'
-/** Where moss fluff gathers in the scene, oldest first. */
-const MESS_SPOTS = [
+/** Where poop gathers in the scene, oldest first. */
+const POOP_SPOTS = [
   { left: '20%', top: '86%' },
   { left: '33%', top: '93%' },
-  { left: '82%', top: '90%' },
+  { left: '80%', top: '90%' },
+  { left: '68%', top: '95%' },
 ]
-const TRAIL = [
-  { left: '18%', top: '78%' },
-  { left: '46%', top: '62%' },
-  { left: '74%', top: '80%' },
-]
-
-const NEED_LABELS: Record<NeedKey, { label: string; icon: string }> = {
-  fullness: { label: 'Full', icon: '🥣' },
-  warmth: { label: 'Warm', icon: '🔥' },
-  rest: { label: 'Rested', icon: '🌙' },
-  companionship: { label: 'Loved', icon: '🤍' },
-}
-
-const MOOD_FACE: Partial<Record<Mood, Face>> = {
-  content: 'content',
-  delighted: 'delighted',
-  restless: 'restless',
-  hungry: 'hungry',
-  cold: 'cold',
-  sleepy: 'sleepy',
-  lonely: 'lonely',
-  sniffly: 'sniffly',
-  fussy: 'restless',
-  asleep: 'asleep',
-  atDoor: 'happy',
-}
 
 const clockTime = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-const minutes = (ms: number) => (ms >= HOUR ? `${ms / HOUR} h` : `${ms / 60_000} min`)
-
-function readLook(): Look {
-  try {
-    return localStorage.getItem(LOOK_KEY) === 'mound' ? 'mound' : 'troll'
-  } catch {
-    return 'troll'
-  }
-}
+const dateTime = (t: number) => new Date(t).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
 
 export function App() {
   const game = useGame()
   if (!game.loaded) return <div className="app" />
-  if (!game.pet) return <NameScreen onCreate={game.create} />
-  return <Home game={game} pet={game.pet} />
+  if (!game.save) return <PlantScreen onPlant={game.plant} />
+  if (game.save.pet.died) return <GraveScreen game={game} pet={game.save.pet} graves={game.save.graves} />
+  return <Home game={game} pet={game.save.pet} />
 }
 
-function NameScreen({ onCreate }: { onCreate: (name: string) => void }) {
-  const [name, setName] = useState('')
+function PlantScreen({ onPlant }: { onPlant: (name: string) => void }) {
   return (
-    <div className="app name-screen">
-      <div className="name-card">
-        <div className="name-creature">
-          <Creature face="asleep" />
+    <div className="app center-screen">
+      <div className="card plant-card">
+        <div className="plant-creature">
+          <Creature face="content" character="spore" />
         </div>
-        <h1>A little patch of moss is stirring…</h1>
-        <p>Something small is waking up in it. What will you call it?</p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            onCreate(name.trim() || 'Moss')
-          }}
-        >
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Moss" maxLength={16} autoFocus />
-          <button type="submit" className="primary">
-            Let it sprout
-          </button>
-        </form>
+        <h1>A spore is glowing in the moss…</h1>
+        <p>Something small will hatch from it. Look after it well: it can grow up into many things, and it can die.</p>
+        <NameForm onSubmit={onPlant} label="Plant it" />
       </div>
     </div>
   )
 }
 
-function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
+function NameForm({ onSubmit, label }: { onSubmit: (name: string) => void; label: string }) {
+  const [name, setName] = useState('')
+  return (
+    <form
+      className="name-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit(name.trim() || 'Moss')
+      }}
+    >
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Moss" maxLength={16} aria-label="Name" />
+      <button type="submit" className="primary">
+        {label}
+      </button>
+    </form>
+  )
+}
+
+function faceOf(pet: Pet, happyReaction: boolean): Face {
+  if (pet.asleep) return 'asleep'
+  if (isFading(pet)) return 'fading'
+  if (pet.sick) return 'sick'
+  if (happyReaction) return 'happy'
+  if (pet.call?.kind === 'fuss') return 'fussy'
+  if (hearts(pet.hunger) <= 1) return 'hungry'
+  if (hearts(pet.happy) <= 1) return 'sad'
+  return 'content'
+}
+
+function statusLine(pet: Pet, now: number): string {
+  const { name } = pet
+  if (pet.character === 'spore') {
+    return `The spore is glowing. It hatches in about ${Math.max(1, Math.ceil((pet.plantedAt + SPORE_HATCHES_AFTER - now) / 60_000))} min.`
+  }
+  if (pet.call) return withName(name, CALL_LINES[pet.call.kind])
+  if (pet.asleep) return `${name} is fast asleep${pet.lightsOff ? ' in the dark' : ''}.`
+  if (pet.sick) return `${name} is sick. It needs medicine (${pet.sick.dosesLeft} more ${pet.sick.dosesLeft === 1 ? 'dose' : 'doses'}).`
+  if (pet.poops > 0) return `${name} has made a mess. Clean it up before it makes ${name} sick.`
+  if (hearts(pet.hunger) <= 1) return `${name} is getting hungry.`
+  if (hearts(pet.happy) <= 1) return `${name} looks bored. Play with it, or give it a snack.`
+  return `${name} is content.`
+}
+
+function Home({ game, pet }: { game: Game; pet: Pet }) {
   const { now, act } = game
   const [reaction, setReaction] = useState<Reaction | null>(null)
-  const [menu, setMenu] = useState<Menu>(null)
-  const [trailStep, setTrailStep] = useState(0)
-  const [look, setLook] = useState<Look>(readLook)
+  const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
     if (!reaction) return
@@ -179,71 +127,19 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
     return () => clearTimeout(id)
   }, [reaction])
 
-  const mood = moodOf(pet, now)
-  const night = isNight(now, pet.hemisphere)
-  const season = seasonAt(now, pet.hemisphere)
-  const weather = weatherAt(now, pet.hemisphere)
-  const hearts = bondLevel(pet.bond)
-  const showReaction = reaction !== null
-  const face: Face | null =
-    showReaction && reaction.happy && mood !== 'asleep' && mood !== 'delighted' ? 'happy' : (MOOD_FACE[mood] ?? null)
-  const CreatureArt = look === 'mound' ? MoundCreature : Creature
-
   const say = (text: string, happy: boolean) => setReaction({ text, happy, until: Date.now() + REACTION_MS })
-
-  const run = (fn: (p: Pet, t: number) => ActionResult, success: (r: Extract<ActionResult, { ok: true }>) => string) => {
+  const run = (fn: (p: Pet, t: number) => ActionResult, success?: string) => {
     const r = act(fn)
     if (!r) return
-    setMenu(null)
-    if (r.ok) say([success(r), ...r.highlights.map((h) => HIGHLIGHT_LINES[h])].join(' '), true)
-    else say(REFUSAL_LINES[r.refusal], false)
+    if (!r.ok) return say(REFUSAL_LINES[r.refusal], false)
+    const lines = [success, ...r.notes.map((n) => NOTE_LINES[n])].filter(Boolean)
+    say(lines.join(' ') || '…', !r.notes.includes('tummyAche') && !r.notes.includes('unfair') && !r.notes.includes('lostGame'))
   }
 
-  const onFeed = (food: Food) => run((p, t) => feed(p, food, t), () => FOOD_LINES[food])
-  const onHug = () => run(hug, () => `You give ${pet.name} a warm hug. It squeezes back.`)
-  const onStory = (id: number) =>
-    run(
-      (p, t) => tellStory(p, id, t),
-      (r) => `You tell the tale of ${STORIES[id]}. ${r.pet.asleep ? `By the end, ${pet.name} is fast asleep.` : `${pet.name} listens, eyes wide.`}`,
-    )
-  const onWalk = (d: Destination) =>
-    run(
-      (p, t) => startWalk(p, d, t),
-      () => `${pet.name} trundles off to the ${DESTINATION_LABELS[d]}. Back in about ${minutes(DESTINATION_INFO[d].duration)}.`,
-    )
-  const onCollect = () => run(collectFinds, (r) => `${pet.name} proudly hands you: ${describe(r.found ?? [])}.`)
-  const onBed = () =>
-    run(pet.asleep ? wake : tuckIn, () => (pet.asleep ? `${pet.name} blinks awake.` : `You tuck ${pet.name} in under a leaf blanket.`))
-  const onGive = (item: Collectible) => run((p, t) => give(p, item, t), () => `You give ${pet.name} a ${ITEMS[item].label.toLowerCase()}. It turns it over and over.`)
-  const onTidy = () => run(tidy, () => (pet.messes.length > 1 ? 'Swept up. A little more to go…' : 'All tidy! The burrow smells of fresh moss.'))
-  const onSettle = () => run(settle, () => `“There, there. Not now.” ${pet.name} huffs… then leans against you.`)
-  const onPlay = () => {
-    if (pet.asleep) return say(REFUSAL_LINES.asleep, false)
-    if (pet.needs.rest < PLAY_MIN_REST) return say(REFUSAL_LINES.tooTired, false)
-    setMenu('play')
-  }
-  const onPlayDone = (startedAt: number, guesses: HideSpot[]) =>
-    run(
-      (p, t) => playHideAndSeek(p, startedAt, guesses, t),
-      (r) => `You found ${pet.name} ${r.score} of ${PLAY_ROUNDS} times.${(r.score ?? 0) < PLAY_WIN_AT ? ' Sneaky! Maybe it has a favourite spot…' : ''}`,
-    )
-  const onSpore = () => {
-    if (trailStep < TRAIL.length - 1) return setTrailStep(trailStep + 1)
-    setTrailStep(0)
-    run(findMossling, () => `You find ${pet.name} curled up under a fern. It sniffles, then hugs your finger. It found you a glowcap!`)
-  }
-
-  const busy = mood === 'away' || mood === 'walking' || mood === 'atDoor'
-  const call = pet.call && !busy && !pet.asleep ? pet.call : null
-  const callLine = !call
-    ? null
-    : call.kind === 'need'
-      ? `${pet.name} is calling you! ${CALL_LINES[call.need]}`
-      : withName(pet.name, FUSS_LINES[call.want])
-  const bubble = showReaction ? reaction.text : (callLine ?? withName(pet.name, pick(MOOD_LINES[mood], now)))
-  const today = dayIndex(now)
-  const wish = pet.wish && pet.wish.day === today ? pet.wish : null
-  const title = [STAGE_LABELS[pet.stage], pet.coat && COAT_LABELS[pet.coat], pet.form && FORM_LABELS[pet.form]].filter(Boolean).join(' ')
+  const info = CHARACTER_INFO[pet.character]
+  const away = pet.sleepover !== null
+  const face = faceOf(pet, reaction?.happy === true)
+  const bubble = reaction?.text ?? (away ? `${pet.name} is on a sleepover. Time stands still until it’s back.` : statusLine(pet, now))
 
   return (
     <div className="app">
@@ -251,158 +147,214 @@ function Home({ game, pet }: { game: ReturnType<typeof useGame>; pet: Pet }) {
         <div>
           <h1>{pet.name}</h1>
           <span className="sub">
-            Day {ageInDays(pet.bornAt, now) + 1} · {title}
+            {info.name}
+            {pet.stage !== 'spore' && ` · age ${pet.age}`}
+            {pet.generation > 1 && ` · generation ${pet.generation}`}
           </span>
         </div>
-        <div className="top-right">
-          <span className="time">{clockTime(now)}</span>
-          <span className="sub" title={`${SEASON_LABELS[season]}, ${WEATHER_LABELS[weather].toLowerCase()}`}>
-            {SEASON_ICONS[season]} {SEASON_LABELS[season]} · {WEATHER_ICONS[weather]}
-          </span>
-        </div>
+        <span className="time">{clockTime(now)}</span>
       </header>
 
-      <Scene now={now} night={night} season={season} weather={weather} showDoorOpen={mood === 'atDoor' || mood === 'walking'}>
-        {face && menu !== 'play' && (
-          <div className={`creature-spot stage-${pet.stage} ${mood === 'atDoor' ? 'at-door' : ''} ${showReaction && reaction.happy ? 'bounce' : ''}`}>
-            <CreatureArt face={face} bundle={mood === 'atDoor'} stage={pet.stage} form={pet.form} coat={pet.coat} />
-            {call && (
+      <Scene now={now} dark={pet.lightsOff && !away}>
+        {!away && !playing && (
+          <div className={`creature-spot stage-${pet.stage} ${reaction?.happy ? 'bounce' : ''} ${isFading(pet) ? 'fading' : ''}`}>
+            <Creature face={face} character={pet.character} />
+            {pet.call && !pet.asleep && (
               <span className="call-badge" aria-hidden>
-                ! <span>{CALL_ICONS[call.kind === 'need' ? call.need : call.want]}</span>
+                !
               </span>
             )}
           </div>
         )}
-        {mood !== 'away' &&
-          pet.messes.map((m, i) => (
-            <button key={m.at + '-' + i} className="mess" style={MESS_SPOTS[i]} onClick={onTidy} aria-label="Tidy up the moss fluff">
+        {!away &&
+          POOP_SPOTS.slice(0, pet.poops).map((spot, i) => (
+            <button key={i} className="poop" style={spot} onClick={() => run(clean, 'All clean!')} aria-label="Clean up">
               <MossFluff />
             </button>
           ))}
-        {mood === 'away' &&
-          TRAIL.slice(0, trailStep + 1).map((pos, i) => (
-            <button
-              key={i}
-              className={`spore ${i === trailStep ? 'active' : 'seen'}`}
-              style={pos}
-              onClick={i === trailStep ? onSpore : undefined}
-              aria-label="Follow the glowing spore"
-            />
-          ))}
-        <div className="bond" aria-label={`Bond ${hearts} of 5`}>
-          {[1, 2, 3, 4, 5].map((i) => (
-            <span key={i} className={i <= hearts ? 'on' : ''}>
-              ♥
-            </span>
-          ))}
-        </div>
       </Scene>
 
-      <p className={`bubble ${showReaction ? 'reacting' : ''}`} aria-live="polite">
+      <p className={`bubble ${reaction ? 'reacting' : ''}`} aria-live="polite">
         {bubble}
       </p>
 
-      {wish && mood !== 'away' && (
-        <p className={`wish ${wish.done ? 'done' : ''}`}>
-          <span aria-hidden>{wish.done ? '✓' : '💭'}</span> Today {pet.name} wishes for {wishText(wish)}.
+      {away ? (
+        <section className="actions">
+          <p className="hint">Back by {dateTime(pet.sleepover!.until)} at the latest.</p>
+          <button className="primary wide" onClick={() => run(endSleepover, `${pet.name} is home!`)}>
+            Bring {pet.name} home
+          </button>
+        </section>
+      ) : (
+        <>
+          <Warnings pet={pet} />
+          {pet.stage !== 'spore' && <Status pet={pet} now={now} />}
+          {playing ? (
+            <PeekGame
+              pet={pet}
+              onDone={(startedAt, guesses) => {
+                setPlaying(false)
+                run((p, t) => play(p, startedAt, guesses, t))
+              }}
+              onClose={() => setPlaying(false)}
+            />
+          ) : pet.stage === 'spore' ? null : (
+            <Actions pet={pet} now={now} run={run} onPlay={() => (pet.asleep ? say(REFUSAL_LINES.asleep, false) : setPlaying(true))} />
+          )}
+        </>
+      )}
+
+      {import.meta.env.DEV && <DevPanel game={game} />}
+    </div>
+  )
+}
+
+type Run = (fn: (p: Pet, t: number) => ActionResult, success?: string) => void
+
+function Actions({ pet, now, run, onPlay }: { pet: Pet; now: number; run: Run; onPlay: () => void }) {
+  const left = snacksLeft(pet, now)
+  return (
+    <section className="actions">
+      <div className="action-row">
+        <button onClick={() => run(meal, 'Munch munch.')}>
+          <span aria-hidden>🥣</span> Meal
+        </button>
+        <button onClick={() => run(snack, 'A berry tart! Its eyes light up.')}>
+          <span aria-hidden>🫐</span> Snack
+          <small>{left} safe today</small>
+        </button>
+        <button onClick={onPlay}>
+          <span aria-hidden>🍄</span> Play
+        </button>
+        <button onClick={() => run(clean, 'All clean!')} disabled={pet.poops === 0}>
+          <span aria-hidden>🧹</span> Clean
+        </button>
+        <button onClick={() => run(medicine)} className={pet.sick ? 'urgent' : ''}>
+          <span aria-hidden>💊</span> Medicine
+        </button>
+        <button onClick={() => run(lights)} className={pet.call?.kind === 'lights' ? 'urgent' : ''}>
+          <span aria-hidden>{pet.lightsOff ? '💡' : '🌙'}</span> {pet.lightsOff ? 'Lights on' : 'Lights off'}
+        </button>
+        <button onClick={() => run(scold, '“Not now.” It sulks, then settles.')} className={pet.call?.kind === 'fuss' ? 'urgent' : ''}>
+          <span aria-hidden>✋</span> Not now
+          <small>scold a fib</small>
+        </button>
+        <button onClick={() => run(startSleepover, `Off to a sleepover at a friend’s burrow.`)}>
+          <span aria-hidden>🎒</span> Sleepover
+          <small>pause</small>
+        </button>
+      </div>
+    </section>
+  )
+}
+
+/** The stakes, always visible (the original hid them). */
+function Status({ pet, now }: { pet: Pet; now: number }) {
+  const next = nextCharacter(pet)
+  const stepAge = nextStepAge(pet.character)
+  const babyLeft = pet.plantedAt + SPORE_HATCHES_AFTER + BABY_GROWS_AFTER - now
+  return (
+    <section className="card status">
+      <dl className="stats">
+        <Hearts label="Hunger" value={pet.hunger} />
+        <Hearts label="Happy" value={pet.happy} />
+        <div>
+          <dt>Discipline</dt>
+          <dd>
+            <span className="meter" role="meter" aria-valuenow={pet.discipline} aria-valuemin={0} aria-valuemax={100} aria-label="Discipline">
+              <span className="meter-fill" style={{ width: `${pet.discipline}%` }} />
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt>Mistakes</dt>
+          <dd className="small">
+            {pet.careMistakes} care (this stage) · {pet.disciplineMistakes} discipline
+          </dd>
+        </div>
+      </dl>
+      {next && (
+        <p className="muted">
+          {pet.character === 'speck' ? (
+            <>Grows into a {CHARACTER_INFO[next].name} in {Math.max(1, Math.ceil(babyLeft / 60_000))} min.</>
+          ) : (
+            <>
+              On track to become a <b>{CHARACTER_INFO[next].name}</b>
+              {next === 'oldLichen' ? ' (the secret form!)' : ''} when it wakes up at age {stepAge}.
+            </>
+          )}
         </p>
       )}
+      {pet.stage === 'adult' && <p className="muted">{CHARACTER_INFO[pet.character].blurb}</p>}
+      <p className="muted">
+        Expected to live to about age {lifespan(pet)}. Every 2 care mistakes take a year off.
+      </p>
+    </section>
+  )
+}
 
-      <GrowingUp pet={pet} now={now} />
-
-      <Meters pet={pet} dim={mood === 'away'} />
-
-      <section className="actions">
-        {mood === 'away' && <p className="hint">Tap the glowing spores to follow the trail.</p>}
-        {mood === 'walking' && pet.activity && (
-          <p className="hint">
-            At the {DESTINATION_LABELS[pet.activity.destination]}. Back around {clockTime(pet.activity.endsAt)}.
-          </p>
-        )}
-        {mood === 'atDoor' && (
-          <button className="primary wide" onClick={onCollect}>
-            Collect finds
-          </button>
-        )}
-        {!busy && menu === null && call && (
-          <button className="settle wide" onClick={onSettle}>
-            “There, there. Not now.”
-            <small>for fussing — not for real needs</small>
-          </button>
-        )}
-        {!busy && menu === null && (
-          <div className="action-row">
-            <button onClick={() => setMenu('feed')}>Feed</button>
-            <button onClick={onHug}>Hug</button>
-            <button onClick={() => setMenu('story')}>Story</button>
-            <button onClick={onPlay}>Play</button>
-            <button onClick={() => setMenu('walk')}>Walk</button>
-            <button onClick={onBed}>{pet.asleep ? 'Wake' : 'Bed'}</button>
-          </div>
-        )}
-        {!busy && menu === 'play' && <HideAndSeek pet={pet} onDone={onPlayDone} onClose={() => setMenu(null)} />}
-        {!busy && menu === 'feed' && (
-          <SubMenu onClose={() => setMenu(null)}>
-            {FOOD_KINDS.map((f) => {
-              const uses = FOODS[f].uses
-              const left = uses ? (pet.inventory[uses] ?? 0) : null
-              return (
-                <button key={f} onClick={() => onFeed(f)} disabled={left === 0}>
-                  {FOOD_LABELS[f]}
-                  <small>{left === null ? 'always' : `×${left}`}</small>
-                </button>
-              )
-            })}
-          </SubMenu>
-        )}
-        {!busy && menu === 'story' && (
-          <SubMenu onClose={() => setMenu(null)}>
-            {storyCards(pet.id, today, new Date(now).getHours()).map((id) => (
-              <button key={id} className="story-card" onClick={() => onStory(id)}>
-                <small>The tale of</small>
-                {STORIES[id]}
-              </button>
-            ))}
-          </SubMenu>
-        )}
-        {!busy && menu === 'walk' && (
-          <SubMenu onClose={() => setMenu(null)}>
-            {DESTINATIONS.map((d) => {
-              const blocker = walkBlocker(pet, d, now)
-              const lockedBy = blocker === 'locked' ? `needs ♥${DESTINATION_INFO[d].bondLevel}` : blocker === 'tooYoung' ? 'not for sprouts' : null
-              return (
-                <button key={d} onClick={() => onWalk(d)} disabled={lockedBy !== null}>
-                  {DESTINATION_LABELS[d]}
-                  <small>{lockedBy ?? minutes(DESTINATION_INFO[d].duration)}</small>
-                </button>
-              )
-            })}
-          </SubMenu>
-        )}
-      </section>
-
-      <Basket pet={pet} onGive={busy ? undefined : onGive} />
-
-      <Journal pet={pet} onHemisphere={() => game.update((p, t) => setHemisphere(p, p.hemisphere === 'north' ? 'south' : 'north', t))} />
-
-      {import.meta.env.DEV && (
-        <DevPanel
-          skip={game.skip}
-          reset={game.reset}
-          care={(days) => game.update((p) => careFor(p, days))}
-          look={look}
-          switchLook={() => {
-            const next = look === 'troll' ? 'mound' : 'troll'
-            setLook(next)
-            try {
-              localStorage.setItem(LOOK_KEY, next)
-            } catch {
-              // ignore
-            }
-          }}
-        />
-      )}
+function Hearts({ label, value }: { label: string; value: number }) {
+  const n = hearts(value)
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className="hearts" aria-label={`${label}: ${n} of ${MAX_HEARTS}`}>
+        {Array.from({ length: MAX_HEARTS }, (_, i) => (
+          <span key={i} className={i < n ? 'on' : ''} aria-hidden>
+            ♥
+          </span>
+        ))}
+      </dd>
     </div>
+  )
+}
+
+/** Danger, said plainly and early: what's wrong, and how long is left to fix it. */
+function Warnings({ pet }: { pet: Pet }) {
+  const risk = deathRisk(pet)
+  if (risk) {
+    return (
+      <p className={`warning ${isFading(pet) ? 'danger' : ''}`} role="alert">
+        {isFading(pet) ? RISK_LINES[risk.cause] : risk.cause === 'sickness' ? `${pet.name} is sick.` : `${pet.name} is starving.`} Without help it dies in about{' '}
+        {duration(risk.in)}.
+      </p>
+    )
+  }
+  if (isLastDay(pet)) return <p className="warning">{pet.name} is very old now. This is its last day: spend it together.</p>
+  return null
+}
+
+/** P1's game: guess which way it will peek out, five times. Three right gives +1 happy. */
+function PeekGame({ pet, onDone, onClose }: { pet: Pet; onDone: (startedAt: number, guesses: Side[]) => void; onClose: () => void }) {
+  const [startedAt] = useState(() => clock.now())
+  const [guesses, setGuesses] = useState<Side[]>([])
+  const sides = gameSides(pet.id, startedAt)
+  const round = guesses.length
+  const last = round > 0 ? { guess: guesses[round - 1], side: sides[round - 1] } : null
+  const guess = (side: Side) => {
+    const next = [...guesses, side]
+    if (next.length === GAME_ROUNDS) onDone(startedAt, next)
+    else setGuesses(next)
+  }
+  return (
+    <section className="peek">
+      <p className="hint">
+        {last ? (last.guess === last.side ? `Yes! It peeked out on the ${last.side}. ` : `No, it peeked out on the ${last.side}. `) : `${pet.name} hides behind a stump… `}
+        Round {round + 1} of {GAME_ROUNDS}: which side will it peek out?
+      </p>
+      <p className="score" aria-label={`${guesses.filter((g, i) => g === sides[i]).length} right so far`}>
+        {sides.map((s, i) => (
+          <span key={i} className={i < round ? (guesses[i] === s ? 'hit' : 'miss') : ''} />
+        ))}
+      </p>
+      <div className="action-row two">
+        <button onClick={() => guess('left')}>← Left</button>
+        <button onClick={() => guess('right')}>Right →</button>
+      </div>
+      <button className="ghost wide" onClick={onClose}>
+        Stop playing
+      </button>
+    </section>
   )
 }
 
@@ -420,211 +372,82 @@ function MossFluff() {
   )
 }
 
-/**
- * Hide-and-seek, three quick rounds. Where it hides is fixed when the game
- * starts (core `hidingSpots`), and the score is checked again in core.
- */
-function HideAndSeek({ pet, onDone, onClose }: { pet: Pet; onDone: (startedAt: number, guesses: HideSpot[]) => void; onClose: () => void }) {
-  const [startedAt] = useState(() => clock.now())
-  const [guesses, setGuesses] = useState<HideSpot[]>([])
-  const spots = hidingSpots(pet.id, startedAt)
-  const round = guesses.length
-  const last = round > 0 ? { guess: guesses[round - 1], spot: spots[round - 1] } : null
-  const look = (spot: HideSpot) => {
-    const next = [...guesses, spot]
-    if (next.length === PLAY_ROUNDS) onDone(startedAt, next)
-    else setGuesses(next)
-  }
+function GraveScreen({ game, pet, graves }: { game: Game; pet: Pet; graves: Grave[] }) {
+  const all = [...graves].reverse()
   return (
-    <div className="hide-seek">
-      <p className="hint">
-        {last
-          ? last.guess === last.spot
-            ? `Found ${pet.name} ${SPOT_LABELS[last.spot].where}! `
-            : `Not there… it was ${SPOT_LABELS[last.spot].where}. `
-          : `${pet.name} covers its eyes… then runs off to hide. `}
-        Round {round + 1} of {PLAY_ROUNDS}: where is it?
-      </p>
-      <p className="score" aria-label={`Found ${guesses.filter((g, i) => g === spots[i]).length} times`}>
-        {spots.map((s, i) => (
-          <span key={i} className={i < round ? (guesses[i] === s ? 'hit' : 'miss') : ''} />
-        ))}
-      </p>
-      <div className="sub-menu">
-        {HIDE_SPOTS.map((spot) => (
-          <button key={spot} className="spot" onClick={() => look(spot)}>
-            <span aria-hidden className="spot-icon">
-              {SPOT_LABELS[spot].icon}
-            </span>
-            {SPOT_LABELS[spot].label}
-          </button>
-        ))}
-        <button className="ghost" onClick={onClose}>
-          Stop playing
-        </button>
+    <div className="app center-screen">
+      <div className="card grave-card">
+        <Gravestone name={pet.name} />
+        <h1>Goodbye, {pet.name}</h1>
+        <p>
+          {pet.name} the {CHARACTER_INFO[pet.character].name} {DEATH_LINES[pet.died!.cause]} It was {pet.age}{' '}
+          {pet.age === 1 ? 'year' : 'years'} old.
+        </p>
+        <p className="muted">A new spore is glowing in the moss nearby. What will you call it?</p>
+        <NameForm onSubmit={game.plant} label="Plant it" />
       </div>
+      {all.length > 0 && (
+        <section className="card">
+          <h2>Mosslings you’ve raised</h2>
+          <ul className="graves">
+            {all.map((g) => (
+              <li key={g.generation}>
+                <b>{g.name}</b> · {CHARACTER_INFO[g.character].name} · age {g.age} <small>{DEATH_LINES[g.cause]}</small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {import.meta.env.DEV && <DevPanel game={game} />}
     </div>
   )
 }
 
-/** While it is still growing: when it grows up next, and which coat its care is heading for. */
-function GrowingUp({ pet, now }: { pet: Pet; now: number }) {
-  const next = STAGES[STAGES.indexOf(pet.stage) + 1]
-  if (next !== 'young' && next !== 'grown') return null
-  const days = Math.max(1, Math.ceil(STAGE_STARTS_AT_DAY[next] - (now - pet.bornAt) / DAY))
-  const coat = coatFor(pet.care, next)
+/** A mossy gravestone with a small spirit drifting up from it. */
+function Gravestone({ name }: { name: string }) {
   return (
-    <p className="growing">
-      <span aria-hidden>🌱</span> Grows up in {days} {days === 1 ? 'day' : 'days'}, with {COAT_HINTS[coat]} so far.
-      <small>
-        Missed calls &amp; messes: {pet.care.mistakes} · Manners: {pet.care.manners}
-      </small>
-    </p>
+    <svg className="gravestone" viewBox="0 0 120 120" role="img" aria-label={`${name}'s gravestone`}>
+      <ellipse cx={60} cy={106} rx={40} ry={6} fill="#000" opacity={0.15} />
+      <g stroke="#3b3a33" strokeWidth={1.6} strokeLinejoin="round">
+        <path d="M34 106 V58 C34 40 86 40 86 58 V106 Z" fill="#b9bdb0" />
+        <path d="M34 58 C36 46 48 42 60 42 C72 42 84 46 86 58 C80 54 76 60 70 56 C64 60 58 54 52 58 C46 54 40 60 34 58 Z" fill="#86ad69" />
+        <path d="M28 106 C29 99 36 97 40 101 C43 96 50 98 50 106 Z" fill="#86ad69" />
+        <path d="M74 106 C75 100 82 98 86 101 C89 98 93 101 92 106 Z" fill="#86ad69" />
+      </g>
+      <text x={60} y={78} textAnchor="middle" fontSize={9} fontWeight={700} fill="#3b3a33">
+        {name}
+      </text>
+      <g className="spirit" fill="#f6f3e6" stroke="#3b3a33" strokeWidth={1}>
+        <path d="M60 14 C68 14 71 22 70 28 C69 34 66 36 64 40 C62 36 60 38 58 34 C56 38 52 36 51 32 C49 24 52 14 60 14 Z" opacity={0.9} />
+        <circle cx={57} cy={24} r={1.2} fill="#3b3a33" stroke="none" />
+        <circle cx={63} cy={24} r={1.2} fill="#3b3a33" stroke="none" />
+      </g>
+    </svg>
   )
 }
 
-function describe(items: ItemKind[]): string {
-  return items.map((k) => `${ITEMS[k].icon} ${ITEMS[k].label.toLowerCase()}`).join(', ')
-}
-
-function SubMenu({ children, onClose }: { children: ReactNode; onClose: () => void }) {
-  return (
-    <div className="sub-menu">
-      {children}
-      <button className="ghost" onClick={onClose}>
-        Close
-      </button>
-    </div>
-  )
-}
-
-function Meters({ pet, dim }: { pet: Pet; dim: boolean }) {
-  return (
-    <ul className={`meters ${dim ? 'dim' : ''}`}>
-      {(Object.keys(NEED_LABELS) as NeedKey[]).map((k) => {
-        const v = Math.round(pet.needs[k])
-        const level = v < 30 ? 'low' : v < 50 ? 'mid' : 'ok'
-        return (
-          <li key={k}>
-            <span className="meter-label">
-              <span aria-hidden>{NEED_LABELS[k].icon}</span> {NEED_LABELS[k].label}
-            </span>
-            <span className="meter" role="meter" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100} aria-label={NEED_LABELS[k].label}>
-              <span className={`meter-fill ${level}`} style={{ width: `${v}%` }} />
-            </span>
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
-
-function Basket({ pet, onGive }: { pet: Pet; onGive?: (item: Collectible) => void }) {
-  const found = COLLECTIBLES.filter((k) => (pet.inventory[k] ?? 0) > 0)
-  return (
-    <section className="card basket">
-      <h2>Pantry</h2>
-      <ul className="chips">
-        {PANTRY_ITEMS.map((k) => (
-          <li key={k} className={(pet.inventory[k] ?? 0) === 0 ? 'empty' : ''}>
-            <span aria-hidden>{ITEMS[k].icon}</span> {ITEMS[k].label} <b>×{pet.inventory[k] ?? 0}</b>
-          </li>
-        ))}
-      </ul>
-      <h2>Collection {onGive && found.length > 0 && <small>tap to give as a present</small>}</h2>
-      {found.length === 0 ? (
-        <p className="muted">Nothing yet. Walks turn things up.</p>
-      ) : (
-        <ul className="chips">
-          {found.map((k) => (
-            <li key={k}>
-              <button disabled={!onGive} onClick={() => onGive?.(k)} title={`Give a ${ITEMS[k].label.toLowerCase()}`}>
-                <span aria-hidden>{ITEMS[k].icon}</span> {ITEMS[k].label} <b>×{pet.inventory[k]}</b>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
-
-function Journal({ pet, onHemisphere }: { pet: Pet; onHemisphere: () => void }) {
-  const prefs = preferencesOf(pet.id)
-  const learned = [
-    pet.known.favoriteFood && `Loves ${FOOD_LABELS[prefs.favoriteFood].toLowerCase()}`,
-    pet.known.dislikedFood && `Can’t stand ${FOOD_LABELS[prefs.dislikedFood].toLowerCase()}`,
-    pet.known.favoriteStory && `Favourite story: ${STORIES[prefs.favoriteStory]}`,
-    pet.known.favoriteItem && `Treasures every ${ITEMS[prefs.favoriteItem].label.toLowerCase()}`,
-    pet.known.favoriteSpot && `Always hides ${SPOT_LABELS[prefs.favoriteSpot].where}`,
-  ].filter(Boolean) as string[]
-  const nextLevel = BOND_LEVELS[bondLevel(pet.bond) + 1]
-  return (
-    <details className="card journal">
-      <summary>
-        <h2>Journal</h2>
-      </summary>
-      <p className="muted">
-        Bond ♥{bondLevel(pet.bond)} · {nextLevel ? `${nextLevel - pet.bond} to the next heart` : 'as close as can be'} · {pet.walks} walks
-      </p>
-      <h3>Things you’ve learned</h3>
-      {learned.length === 0 ? (
-        <p className="muted">Nothing yet. Try different foods, stories and presents.</p>
-      ) : (
-        <ul className="learned">
-          {learned.map((l) => (
-            <li key={l}>{l}</li>
-          ))}
-        </ul>
-      )}
-      <h3>Moments</h3>
-      <ol className="moments">
-        {[...pet.journal].reverse().map((e, i) => (
-          <li key={`${e.at}-${i}`}>
-            <time>{new Date(e.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</time>
-            {journalText(e, pet.name)}
-          </li>
-        ))}
-      </ol>
-      <button className="link" onClick={onHemisphere}>
-        Seasons: {pet.hemisphere === 'north' ? 'northern' : 'southern'} hemisphere (switch)
-      </button>
-    </details>
-  )
-}
-
-type DevProps = {
-  skip: (ms: number) => void
-  reset: () => void
-  care: (days: number) => void
-  look: Look
-  switchLook: () => void
-}
-
-function DevPanel({ skip, reset, care, look, switchLook }: DevProps) {
+function DevPanel({ game }: { game: Game }) {
   return (
     <details className="dev">
       <summary>Dev: time travel</summary>
       <div className="dev-row">
-        <button onClick={() => skip(HOUR)}>+1h</button>
-        <button onClick={() => skip(6 * HOUR)}>+6h</button>
-        <button onClick={() => skip(DAY)}>+1 day</button>
-        <button onClick={() => skip(5 * DAY)}>+5 days (alone)</button>
+        <button onClick={() => game.skip(HOUR)}>+1 h</button>
+        <button onClick={() => game.skip(6 * HOUR)}>+6 h</button>
+        <button onClick={() => game.skip(DAY)}>+1 day, alone</button>
       </div>
       <div className="dev-row">
-        <button onClick={() => care(7)}>+1 week, cared for</button>
-        <button onClick={() => care(30)}>+1 month, cared for</button>
-        <button onClick={() => care(91)}>+1 season, cared for</button>
+        <button onClick={() => game.careFor(3)}>+3 days, cared for</button>
+        <button onClick={() => game.careFor(7)}>+1 week, cared for</button>
+        <button onClick={() => game.careFor(30)}>+1 month, cared for</button>
       </div>
       <div className="dev-row">
-        <button onClick={switchLook}>Look: {look}</button>
         <button
           className="ghost"
           onClick={() => {
-            if (confirm('Start over with a new Mossling?')) reset()
+            if (confirm('Erase everything and start over?')) void game.reset()
           }}
         >
-          New Mossling
+          Erase save
         </button>
       </div>
     </details>
