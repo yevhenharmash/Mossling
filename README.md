@@ -13,7 +13,7 @@ npm run build    # typecheck + production build into dist/ (installable PWA, wor
 
 - `src/core/`: the pet simulation as pure TypeScript. No DOM, storage, React or `Date.now()`; every function takes `now`. Balance numbers are in `tuning.ts`, the evolution chart in `characters.ts`.
 - `src/core/__tests__/`: one file per area. `pacing.test.ts` checks what 2 visits a day, 1 visit a day and no visits lead to.
-- `src/ui/`: the React UI. `clock.ts` is the only place the real clock is read. `storage.ts` is the save adapter.
+- `src/ui/`: the React UI. `Device.tsx` is the toy (pebble shell, icon ring, A/B/C buttons; the keys a, b and c work too) and `icons.tsx` its painted icons. `clock.ts` is the only place the real clock is read. `storage.ts` is the save adapter.
 - `public/`: icons, the web manifest and the offline service worker.
 
 Dev builds have a **Dev: time travel** panel. Skip hours or a day with nobody visiting, or fast-forward days with a perfect player visiting at 8:00 and 19:00 (the same player the pacing tests use, `liveDays` in `src/core/autoplay.ts`).

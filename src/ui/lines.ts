@@ -15,6 +15,19 @@ export const CHARACTER_INFO: Record<CharacterId, { name: string; blurb: string }
   oldLichen: { name: 'Old Lichen', blurb: 'The secret one: a wise old elder with a lichen beard.' },
 }
 
+import type { IconId } from './icons'
+
+/** Shown on the tag when the A button moves the cursor onto an icon. */
+export const ICON_HINTS: Record<Exclude<IconId, 'attention'>, string> = {
+  feed: 'Feed: a meal fills a heart of hunger, a snack a heart of happy.',
+  lights: 'Lights: turn them off when it falls asleep.',
+  play: 'Play: guess which side it peeks out. 3 of 5 right gives a heart of happy.',
+  medicine: 'Medicine: only when it’s sick.',
+  clean: 'Clean: sweep up its mess before it makes it sick.',
+  status: 'Status: its hearts, discipline and age, page by page.',
+  scold: '“Not now”: only when it calls with nothing wrong. Scolding it otherwise hurts its feelings.',
+}
+
 export const CALL_LINES: Record<CallKind, string> = {
   hunger: 'is calling: its tummy is empty!',
   happy: 'is calling: it’s miserable and wants attention!',

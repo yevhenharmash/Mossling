@@ -5,7 +5,7 @@ export const STAGES = ['spore', 'baby', 'child', 'teen', 'adult'] as const
 export type Stage = (typeof STAGES)[number]
 
 /**
- * Every form it can take, in the shape of the original P1 chart (DESIGN.md §6).
+ * Every form it can take, in the shape of the original P1 chart (DESIGN.md §7).
  * Comments name the P1 character each one copies.
  */
 export const CHARACTERS = [

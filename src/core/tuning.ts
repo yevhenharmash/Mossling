@@ -1,5 +1,5 @@
 // Every balance number lives here. Each one is the original P1's value, or a
-// stretched version of it that names the downside it fixes (DESIGN.md §5).
+// stretched version of it that names the downside it fixes (DESIGN.md §6).
 
 import type { CharacterId, Stage } from './types'
 

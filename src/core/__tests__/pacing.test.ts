@@ -15,7 +15,7 @@ import {
 } from '../index'
 import { at, petAs } from './helpers'
 
-// The pacing contract (DESIGN.md §5): what each way of playing leads to.
+// The pacing contract (DESIGN.md §8): what each way of playing leads to.
 
 type Run = { pet: Pet; maxDirty: number; maxStarving: number; forms: CharacterId[] }
 

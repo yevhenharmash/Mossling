@@ -18,7 +18,22 @@ A glowing spore hatches into a tiny moss troll that lives in real time. Feed it,
 - **Rules are copied from the P1; nothing else is.** No Bandai character names, sprites, egg-shaped device or "Tamagotchi" trademark. Game rules can't be copyrighted; names and art can.
 - **Moomin-inspired mood only.** No Moomin, Snufkin, Little My, Moominvalley or other franchise names. No white, rounded, hippo-snouted silhouette. Inspiration comes from Scandinavian folk art, mushrooms, lichen and forest floors.
 
-## 4. The creature and its forms
+## 4. The toy
+
+The screen sits in a toy you hold, so the app feels like a pocket pet rather than a web page (`src/ui/Device.tsx`):
+
+- **The shell** is a smooth river pebble with moss growing over the top, a sprout, a toadstool and a fern. It is our own shape, not the egg.
+- **The screen** is set into a carved hollow behind glass. It shows the painted scene, the clock, and any menu that is open.
+- **The icon ring:** 8 hand-drawn icons are painted on the stone (`src/ui/icons.tsx`), 4 above the screen and 4 below. Above: Feed, Lights, Play, Medicine. Below: Clean, Status, Not now, and a bell. The icon under the cursor lights up. The bell can't be pressed; it lights up and rings when it calls you, like P1's attention icon.
+- **Three wooden buttons**, as on P1: A moves the cursor, B chooses, C backs out. The keys a, b and c work as the buttons. On a touchscreen you can also tap an icon directly.
+- **Screen menus**, as on P1:
+  - Feed opens a two-item menu, Meal and Snack.
+  - Status flips through pages: hunger hearts, happy hearts, the discipline gauge, then age and what it's becoming.
+  - The peek game is played on the screen, around a stump.
+- **The paper tag** tied to the toy shows its words: calls, refusals and reactions. P1 had no text; we keep it because pillar 3 needs words.
+- **Field notes** under the tag keep every stake in view: hearts, discipline, mistakes, what it's on track to become, and its lifespan. The warnings (sick or starving, the hours left) sit above the notes. The Sleepover button is in the notes too.
+
+## 5. The creature and its forms
 
 Storybook look: hand-inked outlines, soft washes, paper grain.
 
@@ -43,7 +58,7 @@ Every form is the same troll with a different body wash and extras (`src/ui/Crea
 | Adult | Thistle | Tarakotchi | Burrs and a thistle flower |
 | Secret | Old Lichen | Oyajitchi / Bill | Grey, a lichen beard |
 
-## 5. Rules: the original, and what we changed
+## 6. Rules: the original, and what we changed
 
 | P1 rule | Mossling | Fixes |
 |---|---|---|
@@ -64,13 +79,13 @@ Every form is the same troll with a different body wash and extras (`src/ui/Crea
 | Scolding when it didn't misbehave | −1 happy | — |
 | **Age** +1 every time it wakes | Same | — |
 | **Growth**: egg 5 min, baby 65 min, teen at age 3, adult at age 6, secret between 8 and 12 | Same; secret at 10 | — |
-| **Evolution chart** by care mistakes per stage and lifetime discipline mistakes | Same table (§6) | — |
+| **Evolution chart** by care mistakes per stage and lifetime discipline mistakes | Same table (§7) | — |
 | **Lifespan** ~12 days on average; mistakes shorten it | **30** with perfect care, **a year less per 2 care mistakes**, never below 8. One visit a day ends around age 17–21 | — |
 | Hidden stats; death without warning | Everything on screen (pillar 3). **Fading** in the last 12 h before death: pale, droopy, a red warning with the hours left. Old age: a warning on its last day | Hidden rules, sudden death |
 | Ghost or angel, then a new egg | A **mossy gravestone** with its name, form, age and cause. Plant a new spore; the gallery keeps every Mossling you raised | Shallow replay |
 | No pause | **Sleepover**: time stands still for up to **3 days**, then it comes home by itself. Not while sick or calling, and not again for a day after it's back | No pause |
 
-## 6. Evolution chart
+## 7. Evolution chart
 
 From the datamined P1 ROM conditions. "Care" counts care mistakes **in the current stage** (the baby's count carries into childhood). "Discipline" counts discipline mistakes over its **whole life**. An **unruly** teen (P1's hidden "type 2") had 3+ discipline mistakes when it stopped being a child. Code: `EVOLUTION_CHART` in `src/core/characters.ts`, one test per row.
 
@@ -88,35 +103,36 @@ From the datamined P1 ROM conditions. "Care" counts care mistakes **in the curre
 | Unruly Burrlet | discipline 0–1 / 2–5 / 6+ | Puddock / Slinkweed / Thistle |
 | Unruly Hoodle | wakes at age 10 | **Old Lichen** (secret) |
 
-## 7. The pacing contract (tested in `pacing.test.ts`)
+## 8. The pacing contract (tested in `pacing.test.ts`)
 
 - **2 visits a day** (tested at 8/19, 7/19, 8/20, 9/18 and 7:30/18:30, lights off at the evening visit) → no care or discipline mistakes, never sick from neglect, becomes **Glowcap**, dies of old age at **30**. Planting in the evening and turning the lights off straight away costs nothing. A child may call for food shortly before the evening visit; it's answered in time.
 - **1 visit a day** → care mistakes most days, **Burrlet → Puddock**, dies of old age around **age 17–21**. It never dies of neglect, and sickness that starts right after a visit can still be treated at the next one.
 - **No visits** → it fades for at least 11 hours, then dies **2–3 days** after the last visit.
 
-## 8. Time model
+## 9. Time model
 
 - The simulation is pure TypeScript in `src/core/`. It never reads the clock; every function takes `now`.
 - Time away is replayed in **5-minute steps** (`simulate`), so the pet keeps living while the app is closed.
 - Every random event (sickness, fusses, the game's peeks) is a roll seeded by the pet's id and the moment. The same history always gives the same result.
 - A **visit** is opening the app or tapping something after an hour away (`arrive`). Only a visit can start a fuss.
 
-## 9. Tech
+## 10. Tech
 
 - **Stack:** Vite + React + TypeScript, Vitest for the rules.
 - **Layout:** `src/core/` is the simulation (no DOM, storage or React). `src/ui/` is the React app. `clock.ts` is the only place that reads the real clock. `storage.ts` is the save adapter (localStorage today).
 - **Phone:** it's an installable **PWA** (`public/manifest.webmanifest`) and works offline (`public/sw.js`).
 - **Next:** wrap the same build with **Capacitor** for the App Store and Play Store. The main reason is **local notifications** for calls ("Pip is calling you"), which are what make the call window meaningful when the app is closed. Web push on iOS only reaches an installed PWA. Swap `storage.ts` for Capacitor Preferences at the same time.
 
-## 10. Decisions
+## 11. Decisions
 
 1. **2026-10-07, art:** good-looking but not fancy. Soft SVG shapes, gentle gradients, simple CSS animation. No pixel art.
 2. **2026-10-07, platform:** web first; Capacitor for native later, with no rewrite.
 3. **2026-10-08, stakes:** copy the original Tamagotchi's rules, including real death, rather than inventing our own. Fix each of its downsides, and name the downside for every change.
 4. **2026-10-09, rewrite:** the earlier prototype's invented systems (seasons, weather, foraging, pantry, wishes, bond, walks, wandering off, journal, coats) were removed, and the core was rewritten as a straight P1 copy. Defaults chosen: P1's 2 hearts (not 4 needs), no weight (a snack limit instead), a 2 h call window, and a capped pause.
 5. **2026-10-09, one pet at a time:** the save holds the current Mossling plus the gravestones of earlier ones.
+6. **2026-10-09, the toy:** the UI became a handheld toy: a mossy pebble with an icon ring, three buttons and a paper tag. It keeps the storybook art inside the screen; pixel art was considered and turned down.
 
-## 11. Open questions
+## 12. Open questions
 
 - Tuning after real playtesting, especially the snack limit, fuss chance and the 2 h window.
 - Notifications: which calls notify, and whether a fuss should (it's a fib, so probably not).

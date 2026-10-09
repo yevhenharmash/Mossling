@@ -1,6 +1,6 @@
 // Offline support: network first, falling back to the last copy we saw.
 // The game runs entirely on the device, so a cached copy is fully playable.
-const CACHE = 'mossling-v1'
+const CACHE = 'mossling-v2'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => {
