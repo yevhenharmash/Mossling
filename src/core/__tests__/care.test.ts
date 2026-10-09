@@ -1,332 +1,252 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BOND,
   CALL_WINDOW,
-  COAT_RULES,
+  CHARACTER_STATS,
   DAY,
-  FAVORITE_SPOT_CHANCE,
-  FUSS_CHANCE,
-  FUSS_FOR,
-  FUSS_PER_DAY,
-  HIDE_SPOTS,
   HOUR,
-  MESS_EVERY,
-  MESS_GRACE,
-  MESS_MAX,
   MINUTE,
-  PLAY_MAX,
-  coatFor,
-  feed,
-  hidingSpots,
-  hug,
-  moodOf,
-  playHideAndSeek,
-  preferencesOf,
-  settle,
+  POOP_SICK_AFTER,
+  SICK_DEATH_AFTER,
+  SNACKS_PER_DAY,
+  STARVE_DEATH_AFTER,
+  arrive,
+  clean,
+  createPet,
+  deathRisk,
+  endSleepover,
+  gameSides,
+  hearts,
+  isFading,
+  lifespan,
+  lights,
+  meal,
+  medicine,
+  play,
+  scold,
   simulate,
-  startWalk,
-  tidy,
-  tuckIn,
-  type Call,
-  type HideSpot,
+  snack,
+  startSleepover,
   type Pet,
 } from '../index'
-import { at, basicVisit, petAt } from './helpers'
+import { at, petAs } from './helpers'
 
-// DESIGN.md §6.9–§6.10: calls, messes, manners, coats and hide-and-seek.
-
-const NOON = at(10, 6, 12)
-const fresh = (stage: Pet['stage'] = 'young', id = 'moss-1') => basicVisit(petAt(NOON - HOUR, stage, id), NOON)
-const quiet = (p: Pet): Pet => ({ ...p, call: null, messes: [], messClock: 0, fussRolled: true, wish: null })
-const withNeeds = (p: Pet, needs: Partial<Pet['needs']>): Pet => ({ ...p, needs: { ...p.needs, ...needs } })
-const fuss = (want: 'treat' | 'play' | 'walk', t = NOON): Call => ({ kind: 'fuss', want, since: t, until: t + FUSS_FOR })
-
-describe('calls', () => {
-  it('a need in distress calls you; answering it in time is not a mistake', () => {
-    const p = simulate(withNeeds(quiet(fresh()), { fullness: 32 }), NOON + HOUR)
-    expect(p.call).toMatchObject({ kind: 'need', need: 'fullness' })
-    expect(moodOf(p, NOON + HOUR)).toBe('hungry')
-    const r = feed(p, 'porridge', NOON + HOUR + 10 * MINUTE)
-    expect(r.ok && r.highlights).toContain('answered')
-    expect(r.pet.call?.kind).not.toBe('need')
-    expect(r.pet.care.mistakes).toBe(0)
-  })
-
-  it('a missed call is one care mistake, and that need does not call again until it recovers', () => {
-    const p = simulate(withNeeds(quiet(fresh()), { fullness: 29 }), NOON + 5 * MINUTE)
-    expect(p.call?.kind).toBe('need')
-    const missed = simulate(p, NOON + CALL_WINDOW + 10 * MINUTE)
-    expect(missed.care.mistakes).toBe(1)
-    expect(missed.daily.mistakes).toBe(1)
-    expect(missed.missedNeeds).toContain('fullness')
-    expect(simulate(missed, NOON + 4 * CALL_WINDOW).care.mistakes).toBe(1)
-    // Fed back up, it may call again next time it gets hungry.
-    const fed = feed(missed, 'porridge', NOON + CALL_WINDOW + 15 * MINUTE).pet
-    expect(fed.missedNeeds).not.toContain('fullness')
-  })
-
-  it('an unanswered sleepy call is no mistake: it dozes off by itself', () => {
-    const p = simulate(withNeeds(quiet(fresh()), { rest: 29 }), NOON + 5 * MINUTE)
-    expect(p.call).toMatchObject({ need: 'rest' })
-    const later = simulate(p, NOON + CALL_WINDOW + 10 * MINUTE)
-    expect(later.asleep).toBe('tired')
-    expect(later.care.mistakes).toBe(0)
-  })
-
-  it('never calls while asleep, out on a walk or away; falling asleep ends a call without a mistake', () => {
-    const base = withNeeds(quiet(fresh()), { fullness: 25 })
-    expect(simulate({ ...base, asleep: 'tucked' }, NOON + HOUR).call).toBeNull()
-    expect(simulate({ ...base, wanderedOffAt: NOON - MINUTE }, NOON + HOUR).call).toBeNull()
-    const walking = startWalk(withNeeds(quiet(fresh()), { fullness: 60 }), 'meadow', NOON).pet
-    expect(simulate(withNeeds(walking, { fullness: 25 }), NOON + 10 * MINUTE).call).toBeNull()
-
-    const calling = simulate(base, NOON + 5 * MINUTE)
-    const tucked = tuckIn(withNeeds(calling, { rest: 50 }), NOON + 10 * MINUTE).pet
-    expect(tucked.call).toBeNull()
-    expect(simulate(tucked, NOON + 3 * HOUR).care.mistakes).toBe(0)
-  })
-
-  it('a real need pushes a fuss aside', () => {
-    const p = simulate({ ...withNeeds(quiet(fresh()), { warmth: 25 }), call: fuss('treat') }, NOON + 5 * MINUTE)
-    expect(p.call).toMatchObject({ kind: 'need', need: 'warmth' })
-  })
-})
-
-describe('messes', () => {
-  it(`appear every ${MESS_EVERY} hours awake at home, at most ${MESS_MAX} at a time`, () => {
-    const p = withNeeds(quiet(fresh()), { fullness: 100, warmth: 100, rest: 100, companionship: 100 })
-    expect(simulate(p, NOON + (MESS_EVERY - 0.5) * HOUR).messes).toHaveLength(0)
-    expect(simulate(p, NOON + (MESS_EVERY + 0.5) * HOUR).messes).toHaveLength(1)
-    // A full pile stops growing.
-    const mess = { at: NOON, late: false }
-    const almost = { ...p, messes: Array(MESS_MAX - 1).fill(mess), messClock: MESS_EVERY - 0.1 }
-    expect(simulate(almost, NOON + HOUR).messes).toHaveLength(MESS_MAX)
-    expect(simulate({ ...almost, messes: Array(MESS_MAX).fill(mess) }, NOON + HOUR).messes).toHaveLength(MESS_MAX)
-  })
-
-  it('none while asleep', () => {
-    const p = { ...quiet(fresh()), asleep: 'tucked' as const, needs: { fullness: 100, warmth: 100, rest: 20, companionship: 100 } }
-    expect(simulate(p, NOON + (MESS_EVERY + 0.5) * HOUR).messes).toHaveLength(0)
-  })
-
-  it('tidying takes one away; it works around a sleeping Mossling without waking it', () => {
-    const p: Pet = { ...quiet(fresh()), messes: [{ at: NOON, late: false }, { at: NOON, late: false }] }
-    const once = tidy(p, NOON)
-    expect(once.ok && once.pet.messes).toHaveLength(1)
-    const asleep = tidy({ ...p, asleep: 'tucked' }, NOON)
-    expect(asleep.ok && asleep.pet.asleep).toBe('tucked')
-    expect(tidy(quiet(fresh()), NOON)).toMatchObject({ ok: false, refusal: 'noMess' })
-  })
-
-  it(`a mess left ${MESS_GRACE / HOUR} hours is one mistake, counted once`, () => {
-    const p: Pet = { ...quiet(fresh()), messes: [{ at: NOON, late: false }] }
-    expect(simulate(p, NOON + MESS_GRACE - HOUR).care.mistakes).toBe(0)
-    const late = simulate(p, NOON + MESS_GRACE + 10 * MINUTE)
-    const mistakes = late.care.mistakes
-    expect(mistakes).toBeGreaterThanOrEqual(1)
-    expect(late.messes[0].late).toBe(true)
-    // The same mess is never counted again (other mistakes may pile up meanwhile).
-    const tidied = tidy(late, NOON + MESS_GRACE + 15 * MINUTE).pet
-    expect(tidied.care.mistakes).toBe(mistakes)
-  })
-})
-
-describe('fussing and manners', () => {
-  const content = (id: string) => quiet({ ...fresh('young', id), fussRolled: false })
-
-  it('fusses at most once a visit, only when content, and in about the right share of visits', () => {
-    let fusses = 0
-    const n = 300
-    for (let i = 0; i < n; i++) {
-      const p = { ...content(`pet-${i}`), lastInteractionAt: NOON - 3 * HOUR }
-      const r = hug(p, NOON)
-      if (r.pet.call?.kind === 'fuss') {
-        fusses++
-        expect(moodOf(r.pet, NOON)).toBe('fussy')
-        expect(r.ok && r.highlights).toContain('fussing')
-      }
-      // Same visit: no second roll.
-      const again = hug({ ...r.pet, call: null }, NOON + MINUTE)
-      expect(again.pet.call).toBeNull()
-    }
-    expect(fusses / n).toBeGreaterThan(FUSS_CHANCE - 0.1)
-    expect(fusses / n).toBeLessThan(FUSS_CHANCE + 0.1)
-  })
-
-  it('never fusses when something is really wrong', () => {
-    for (let i = 0; i < 50; i++) {
-      const p = withNeeds({ ...content(`pet-${i}`), lastInteractionAt: NOON - 3 * HOUR }, { fullness: 35 })
-      expect(hug(p, NOON).pet.call?.kind).not.toBe('fuss')
-    }
-  })
-
-  it(`at most ${FUSS_PER_DAY} fusses a day`, () => {
-    let p = content('moss-1')
-    for (let v = 0; v < 12; v++) {
-      const t = NOON - 6 * HOUR + v * (VISIT + MINUTE)
-      p = settleIfFussing(hug({ ...p, needs: { fullness: 90, warmth: 90, rest: 90, companionship: 90 } }, t).pet, t)
-    }
-    expect(p.daily.fusses).toBeLessThanOrEqual(FUSS_PER_DAY)
-  })
-
-  it('"not now" teaches manners; giving in un-teaches them', () => {
-    const p: Pet = { ...quiet(fresh()), call: fuss('treat') }
-    const settled = settle(p, NOON + MINUTE)
-    expect(settled.ok && settled.highlights).toContain('settled')
-    expect(settled.pet.care.manners).toBe(1)
-    expect(settled.pet.call).toBeNull()
-    // Even at the start of a new visit, settling never sets off a fresh fuss.
-    const fresh2 = settle({ ...p, fussRolled: false, lastInteractionAt: NOON - 3 * HOUR }, NOON + MINUTE)
-    expect(fresh2.pet.call).toBeNull()
-
-    const treat = (['berries', 'soup', 'tea'] as const).find((f) => f !== preferencesOf(p.id).dislikedFood)!
-    const spoiled = feed(withNeeds(p, { fullness: 60 }), treat, NOON + MINUTE)
-    expect(spoiled.ok && spoiled.highlights).toContain('gaveIn')
-    expect(spoiled.pet.care.manners).toBe(-1)
-    // Porridge isn't a treat.
-    expect(feed(withNeeds(p, { fullness: 60 }), 'porridge', NOON + MINUTE).pet.care.manners).toBe(0)
-
-    const walked = startWalk(withNeeds({ ...p, call: fuss('walk') }, { rest: 90 }), 'meadow', NOON + MINUTE)
-    expect(walked.pet.care.manners).toBe(-1)
-    const played = playHideAndSeek({ ...p, call: fuss('play') }, NOON, ['stump', 'fern', 'mushroom'], NOON + MINUTE)
-    expect(played.pet.care.manners).toBe(-1)
-  })
-
-  it('a real need cannot be settled — it is refused, with no harm done', () => {
-    const p = simulate(withNeeds(quiet(fresh()), { fullness: 25 }), NOON + 5 * MINUTE)
-    const r = settle(p, NOON + 5 * MINUTE)
-    expect(r).toMatchObject({ ok: false, refusal: 'reallyNeeds' })
-    expect(r.pet.care).toEqual(p.care)
-    expect(settle(quiet(fresh()), NOON)).toMatchObject({ ok: false, refusal: 'noCall' })
-  })
-
-  it('an ignored fuss just fades away — no mistake', () => {
-    const p = simulate({ ...quiet(fresh()), call: fuss('treat') }, NOON + FUSS_FOR + 5 * MINUTE)
-    expect(p.call).toBeNull()
-    expect(p.care).toEqual({ mistakes: 0, manners: 0 })
-  })
-})
-
-const VISIT = HOUR
-const wonGame = (r: ReturnType<typeof hug>) => r.ok && r.highlights.includes('won')
-function settleIfFussing(p: Pet, t: number): Pet {
-  return p.call?.kind === 'fuss' ? settle(p, t).pet : p
+const ok = (r: { ok: boolean; pet: Pet }) => {
+  expect(r.ok).toBe(true)
+  return r.pet
 }
 
-describe('coats', () => {
-  it('follow the documented thresholds', () => {
-    for (const stage of ['young', 'grown'] as const) {
-      const rule = COAT_RULES[stage]
-      expect(coatFor({ mistakes: rule.glossyMaxMistakes, manners: rule.glossyMinManners }, stage)).toBe('glossy')
-      expect(coatFor({ mistakes: rule.glossyMaxMistakes, manners: rule.glossyMinManners - 1 }, stage)).toBe('mossy')
-      expect(coatFor({ mistakes: rule.glossyMaxMistakes + 1, manners: 99 }, stage)).toBe('mossy')
-      expect(coatFor({ mistakes: rule.wildFromMistakes, manners: 99 }, stage)).toBe('wild')
-    }
+describe('meters and calls', () => {
+  it('a heart empties in the character’s hours, and it calls when a meter hits zero', () => {
+    const t = at(3, 2, 8)
+    const hours = CHARACTER_STATS.glowcap.hungerHours
+    const p = simulate(petAs('glowcap', t, { hunger: 1 }), t + hours * HOUR + MINUTE * 5)
+    expect(p.hunger).toBe(0)
+    expect(p.call?.kind).toBe('hunger')
   })
 
-  it('are set (and journaled) on growing up, and care starts over for the next stage', () => {
-    const born = NOON - 2 * DAY + HOUR
-    const p: Pet = { ...quiet(fresh('sprout')), bornAt: born, care: { mistakes: 0, manners: 2 } }
-    const young = simulate(p, NOON + 2 * HOUR)
-    expect(young.stage).toBe('young')
-    expect(young.coat).toBe('glossy')
-    expect(young.journal.some((e) => e.kind === 'coat' && e.detail === 'glossy')).toBe(true)
-    expect(young.care).toEqual({ mistakes: 0, manners: 0 })
+  it('an unanswered call is a care mistake after the window, and that meter won’t call again until refilled', () => {
+    const t = at(3, 2, 8)
+    const p = simulate(petAs('glowcap', t, { hunger: 0.01 }), t + CALL_WINDOW + 15 * MINUTE)
+    expect(p.careMistakes).toBe(1)
+    expect(p.lifeMistakes).toBe(1)
+    expect(p.call).toBeNull()
+    expect(simulate(p, t + 4 * HOUR).careMistakes).toBe(1)
   })
 
-  it('a good day with no mistakes mends one from before', () => {
-    const p: Pet = { ...quiet(fresh()), care: { mistakes: 2, manners: 0 } }
-    const midnight = at(10, 7, 0, 5)
-    const good = { ...p, daily: { ...p.daily, goodDay: true, mistakes: 0 } }
-    expect(simulate(good, midnight).care.mistakes).toBe(1)
-    const bad = { ...p, daily: { ...p.daily, goodDay: true, mistakes: 1 } }
-    expect(simulate(bad, midnight).care.mistakes).toBe(2)
+  it('feeding answers a hunger call in time', () => {
+    const t = at(3, 2, 8)
+    const calling = simulate(petAs('glowcap', t, { hunger: 0.01 }), t + 30 * MINUTE)
+    const fed = ok(meal(calling, t + HOUR))
+    expect(fed.call).toBeNull()
+    expect(simulate(fed, t + 4 * HOUR).careMistakes).toBe(0)
   })
 
-  // The whole loop, as a player would live it: from a new sprout to young.
-  function raise(hours: number[], id: string): Pet {
-    const start = at(10, 6, 9)
-    let p = basicVisit(petAt(start, 'sprout', id), start)
-    for (let d = 0; d <= 2; d++) {
-      for (const h of hours) {
-        const t = at(10, 6 + d, h)
-        if (t > start) p = basicVisit(p, t)
-      }
-    }
-    return simulate(p, at(10, 9, 12))
-  }
-
-  it('one visit a day grows a wild coat', () => {
-    for (let i = 0; i < 5; i++) expect(raise([12], `pet-${i}`).coat, `pet-${i}`).toBe('wild')
+  it('a meal adds one heart, and it refuses when full', () => {
+    const t = at(3, 2, 8)
+    expect(hearts(ok(meal(petAs('glowcap', t, { hunger: 1 }), t)).hunger)).toBe(2)
+    expect(meal(petAs('glowcap', t), t)).toMatchObject({ ok: false, refusal: 'full' })
   })
 
-  it('three caring visits a day never do — and usually earn a glossy one', () => {
-    const coats = Array.from({ length: 20 }, (_, i) => raise([8, 13, 19], `pet-${i}`).coat)
-    expect(coats).not.toContain('wild')
-    expect(coats.filter((c) => c === 'glossy').length).toBeGreaterThan(coats.length / 2)
+  it('snacks give a heart of happy; one too many in a day gives a tummy ache', () => {
+    const t = at(3, 2, 8)
+    let p = petAs('glowcap', t, { happy: 0 })
+    for (let i = 0; i < SNACKS_PER_DAY; i++) p = ok(snack(p, t))
+    expect(p.happy).toBe(4)
+    expect(p.sick).toBeNull()
+    const r = snack(p, t)
+    expect(r.ok && r.notes).toContain('tummyAche')
+    expect(r.pet.sick).not.toBeNull()
+    // A new day, a new allowance.
+    expect(ok(snack({ ...p, sick: null }, t + DAY)).sick).toBeNull()
+  })
+
+  it('the game gives +1 happy for 3 of 5 right, nothing otherwise', () => {
+    const t = at(3, 2, 8)
+    const p = petAs('glowcap', t, { happy: 1 })
+    const sides = gameSides(p.id, t)
+    expect(hearts(ok(play(p, t, sides, t)).happy)).toBe(2)
+    const wrong = sides.map((s) => (s === 'left' ? 'right' : 'left'))
+    expect(hearts(ok(play(p, t, wrong, t)).happy)).toBe(1)
   })
 })
 
-describe('hide-and-seek', () => {
-  const rested = (p: Pet) => withNeeds(quiet(p), { rest: 80, fullness: 80 })
-
-  it('hiding spots are fixed for a game, so the UI and the score agree', () => {
-    expect(hidingSpots('moss-1', NOON)).toEqual(hidingSpots('moss-1', NOON))
-    expect(hidingSpots('moss-1', NOON)).toHaveLength(3)
-    for (const s of hidingSpots('moss-1', NOON)) expect(HIDE_SPOTS).toContain(s)
-  })
-
-  it(`it hides in its favourite spot about ${FAVORITE_SPOT_CHANCE * 100}% of the time`, () => {
-    const fav = preferencesOf('moss-1').favoriteSpot
-    let hits = 0
-    const games = 2000
-    for (let g = 0; g < games; g++) hits += hidingSpots('moss-1', NOON + g * 1000).filter((s) => s === fav).length
-    expect(hits / (games * 3)).toBeGreaterThan(FAVORITE_SPOT_CHANCE - 0.04)
-    expect(hits / (games * 3)).toBeLessThan(FAVORITE_SPOT_CHANCE + 0.04)
-  })
-
-  it('a player who learns its favourite spot wins far more often than one guessing blindly', () => {
-    const fav = preferencesOf('moss-1').favoriteSpot
-    const p = rested(fresh())
-    let smart = 0
-    let blind = 0
-    for (let g = 0; g < 400; g++) {
-      const t = NOON + g * 1000
-      if (wonGame(playHideAndSeek(p, t, [fav, fav, fav], t))) smart++
-      const guesses = [0, 1, 2].map((i) => HIDE_SPOTS[(g + i) % 3]) as HideSpot[]
-      if (wonGame(playHideAndSeek(p, t, guesses, t))) blind++
+describe('discipline', () => {
+  it('a new visit can bring a fuss, and scolding it gives +25%', () => {
+    const t = at(3, 2, 8)
+    // Find a visit time at which it fusses (it's a 40% roll).
+    let fussing: Pet | null = null
+    for (let h = 0; h < 40 && !fussing; h++) {
+      const p = arrive(petAs('glowcap', t, { discipline: 0, lastSeenAt: t - 2 * HOUR }), t + h * MINUTE)
+      if (p.call?.kind === 'fuss') fussing = p
     }
-    expect(smart).toBeGreaterThan(blind * 1.8)
+    expect(fussing).not.toBeNull()
+    const now = fussing!.lastSeenAt
+    expect(meal({ ...fussing!, hunger: 1 }, now)).toMatchObject({ ok: false, refusal: 'fussing' })
+    const scolded = ok(scold(fussing!, now))
+    expect(scolded.discipline).toBe(25)
+    expect(scolded.call).toBeNull()
   })
 
-  it('scores the rounds; a win delights it, gives bond once a day, and can reveal the favourite spot', () => {
-    const p = rested(fresh())
-    const spots = hidingSpots(p.id, NOON)
-    const won = playHideAndSeek(p, NOON, spots, NOON + MINUTE)
-    expect(won.ok && won.score).toBe(3)
-    expect(won.ok && won.highlights).toContain('won')
-    expect(won.pet.delightUntil).toBeGreaterThan(NOON)
-    expect(won.pet.bond - p.bond).toBeGreaterThanOrEqual(BOND.playWin)
-    if (spots.includes(preferencesOf(p.id).favoriteSpot)) expect(won.pet.known.favoriteSpot).toBe(true)
-
-    const again = playHideAndSeek({ ...won.pet, delightUntil: 0 }, NOON + MINUTE, hidingSpots(p.id, NOON + MINUTE), NOON + 2 * MINUTE)
-    expect(again.pet.bond).toBe(won.pet.bond)
-
-    const miss = spots.map((s) => HIDE_SPOTS.find((o) => o !== s)!)
-    const lost = playHideAndSeek(p, NOON, miss, NOON + MINUTE)
-    expect(lost.ok && lost.score).toBe(0)
-    expect(lost.ok && lost.highlights).not.toContain('won')
-    expect(lost.pet.needs.companionship).toBeGreaterThan(p.needs.companionship)
-    expect(lost.pet.needs.rest).toBeLessThan(p.needs.rest)
+  it('ignoring a fuss is a discipline mistake, not a care mistake', () => {
+    const t = at(3, 2, 8)
+    const p = simulate(petAs('glowcap', t, { call: { kind: 'fuss', since: t, until: t + CALL_WINDOW } }), t + 3 * HOUR)
+    expect(p.disciplineMistakes).toBe(1)
+    expect(p.careMistakes).toBe(0)
   })
 
-  it('refuses stale or impossible games, and a tired Mossling', () => {
-    const p = rested(fresh())
-    expect(playHideAndSeek(p, NOON - PLAY_MAX - MINUTE, ['stump', 'stump', 'stump'], NOON)).toMatchObject({ refusal: 'noGame' })
-    expect(playHideAndSeek(p, NOON + MINUTE, ['stump', 'stump', 'stump'], NOON)).toMatchObject({ refusal: 'noGame' })
-    expect(playHideAndSeek(p, NOON, ['stump', 'stump'], NOON)).toMatchObject({ refusal: 'noGame' })
-    expect(playHideAndSeek(p, NOON, ['stump', 'stump', 'sofa' as HideSpot], NOON)).toMatchObject({ refusal: 'noGame' })
-    expect(playHideAndSeek(withNeeds(p, { rest: 20 }), NOON, ['stump', 'stump', 'stump'], NOON)).toMatchObject({ refusal: 'tooTired' })
-    expect(playHideAndSeek({ ...p, asleep: 'tucked' }, NOON, ['stump', 'stump', 'stump'], NOON)).toMatchObject({ refusal: 'asleep' })
+  it('no fuss once discipline is full, or without a break between visits', () => {
+    const t = at(3, 2, 8)
+    for (let m = 0; m < 60; m++) {
+      expect(arrive(petAs('glowcap', t), t + m * MINUTE).call).toBeNull()
+      expect(arrive(petAs('glowcap', t, { discipline: 0 }), t + m * MINUTE).call).toBeNull()
+    }
+  })
+
+  it('scolding for nothing costs a heart of happy', () => {
+    const t = at(3, 2, 8)
+    const r = scold(petAs('glowcap', t), t)
+    expect(r.ok && r.notes).toContain('unfair')
+    expect(hearts(r.pet.happy)).toBe(3)
+  })
+})
+
+describe('bedtime', () => {
+  it('falling asleep with the lights on calls; leaving them on is a care mistake', () => {
+    const t = at(3, 2, 21, 30)
+    const p = simulate(petAs('glowcap', t), at(3, 2, 22, 10))
+    expect(p.asleep).toBe(true)
+    expect(p.call?.kind).toBe('lights')
+    expect(simulate(p, at(3, 3, 0, 30)).careMistakes).toBe(1)
+    expect(simulate(ok(lights(p, at(3, 2, 23))), at(3, 3, 0, 30)).careMistakes).toBe(0)
+  })
+
+  it('the lights can go off up to 4 hours before bedtime, so an evening visit covers it', () => {
+    expect(lights(petAs('glowcap', at(3, 2, 17)), at(3, 2, 17))).toMatchObject({ ok: false, refusal: 'notBedtime' })
+    const off = ok(lights(petAs('glowcap', at(3, 2, 18)), at(3, 2, 18)))
+    const night = simulate(off, at(3, 2, 23))
+    expect(night.asleep).toBe(true)
+    expect(night.call).toBeNull()
+  })
+
+  it('meters don’t drop while asleep, and lights come back on when it wakes', () => {
+    const t = at(3, 2, 22, 30)
+    const p = simulate(petAs('glowcap', t, { asleep: true, lightsOff: true }), at(3, 3, 6, 55))
+    expect(p.hunger).toBe(4)
+    const morning = simulate(p, at(3, 3, 7, 30))
+    expect(morning.asleep).toBe(false)
+    expect(morning.lightsOff).toBe(false)
+  })
+})
+
+describe('poop and sickness', () => {
+  it('poop left lying around for 12 awake hours makes it sick', () => {
+    const t = at(3, 2, 8)
+    const dirty = petAs('glowcap', t, { poops: 1, hunger: 99, happy: 99 })
+    expect(simulate(dirty, t + POOP_SICK_AFTER - HOUR).sick).toBeNull()
+    expect(simulate(dirty, t + POOP_SICK_AFTER + 5 * MINUTE).sick).not.toBeNull()
+    expect(ok(clean(dirty, t)).poops).toBe(0)
+  })
+
+  it('medicine takes the character’s number of doses', () => {
+    const t = at(3, 2, 8)
+    const p = petAs('slinkweed', t, { sick: { dosesLeft: CHARACTER_STATS.slinkweed.doses, untreatedFor: 0 } })
+    const once = ok(medicine(p, t))
+    expect(once.sick).not.toBeNull()
+    const cured = medicine(ok(medicine(once, t)), t)
+    expect(cured.ok && cured.notes).toContain('cured')
+    expect(cured.pet.sick).toBeNull()
+    expect(medicine(cured.pet, t)).toMatchObject({ ok: false, refusal: 'notSick' })
+  })
+
+  it('most get sick once at random during a stage', () => {
+    const t = at(3, 2, 8)
+    const teens = Array.from({ length: 20 }, (_, i) => petAs('fernlet', t, { id: `moss-${i}`, age: 0, stageSickDone: false, hunger: 99, happy: 99 }))
+    const sickOnce = teens.map((p) => simulate(p, t + 5 * DAY)).filter((p) => p.stage === 'teen' && p.stageSickDone)
+    expect(sickOnce.length).toBeGreaterThanOrEqual(16)
+  })
+})
+
+describe('death', () => {
+  it('untreated sickness kills after 36 hours, fading for the last 12', () => {
+    const t = at(3, 2, 8)
+    const p = petAs('glowcap', t, { hunger: 99, happy: 99, sick: { dosesLeft: 1, untreatedFor: 0 } })
+    expect(isFading(simulate(p, t + SICK_DEATH_AFTER - 13 * HOUR))).toBe(false)
+    const fading = simulate(p, t + SICK_DEATH_AFTER - 11 * HOUR)
+    expect(isFading(fading)).toBe(true)
+    expect(deathRisk(fading)?.cause).toBe('sickness')
+    expect(fading.died).toBeNull()
+    expect(simulate(p, t + SICK_DEATH_AFTER + 5 * MINUTE).died?.cause).toBe('sickness')
+  })
+
+  it('an unhatched spore is in no danger, though its hearts start empty', () => {
+    const t = at(3, 2, 8)
+    expect(deathRisk(createPet('moss-1', 'Moss', t))).toBeNull()
+  })
+
+  it('hunger at zero for 36 hours starves it', () => {
+    const t = at(3, 2, 8)
+    const p = petAs('glowcap', t, { hunger: 0, happy: 99 })
+    expect(simulate(p, t + STARVE_DEATH_AFTER - HOUR).died).toBeNull()
+    expect(simulate(p, t + STARVE_DEATH_AFTER + 5 * MINUTE).died?.cause).toBe('starvation')
+  })
+
+  it('it dies of old age in its sleep, a year sooner for every 2 care mistakes', () => {
+    expect(lifespan({ lifeMistakes: 0 })).toBe(30)
+    expect(lifespan({ lifeMistakes: 5 })).toBe(28)
+    expect(lifespan({ lifeMistakes: 10 })).toBe(25)
+    expect(lifespan({ lifeMistakes: 99 })).toBe(8)
+    const t = at(3, 2, 23)
+    const p = petAs('glowcap', t, { age: 24, lifeMistakes: 10, asleep: true, lightsOff: true })
+    const dead = simulate(p, at(3, 3, 8))
+    expect(dead.died?.cause).toBe('oldAge')
+    expect(dead.age).toBe(25)
+  })
+})
+
+describe('sleepover (pause)', () => {
+  it('time stands still while it’s away, and it can be brought home early', () => {
+    const t = at(3, 2, 19)
+    const away = ok(startSleepover(petAs('glowcap', t, { hunger: 1 }), t))
+    const later = simulate(away, t + 2 * DAY)
+    expect(later.hunger).toBe(1)
+    expect(later.age).toBe(away.age)
+    const home = ok(endSleepover(later, t + 2 * DAY))
+    expect(home.sleepover).toBeNull()
+    expect(home.hunger).toBe(1)
+  })
+
+  it('it comes home by itself after 3 days, and can’t go again for a day', () => {
+    const t = at(3, 2, 19)
+    const away = ok(startSleepover(petAs('glowcap', t), t))
+    const back = simulate(away, t + 3 * DAY + HOUR)
+    expect(back.sleepover).toBeNull()
+    expect(back.hunger).toBeLessThan(4)
+    expect(startSleepover(back, t + 3 * DAY + HOUR)).toMatchObject({ ok: false, refusal: 'tooSoon' })
+  })
+
+  it('not while sick or calling', () => {
+    const t = at(3, 2, 19)
+    expect(startSleepover(petAs('glowcap', t, { sick: { dosesLeft: 1, untreatedFor: 0 } }), t)).toMatchObject({ ok: false, refusal: 'sick' })
+    expect(startSleepover(petAs('glowcap', t, { hunger: 0 }), t + MINUTE)).toMatchObject({ ok: false, refusal: 'calling' })
   })
 })

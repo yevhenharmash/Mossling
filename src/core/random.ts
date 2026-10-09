@@ -20,14 +20,7 @@ export function hashString(s: string): number {
   return h >>> 0
 }
 
-/** Picks a key with probability proportional to its weight (zero weights never win). */
-export function weightedPick<K extends string>(weights: Partial<Record<K, number>>, rand: () => number): K {
-  const entries = (Object.entries(weights) as [K, number][]).filter(([, w]) => w > 0)
-  const total = entries.reduce((sum, [, w]) => sum + w, 0)
-  let roll = rand() * total
-  for (const [key, w] of entries) {
-    roll -= w
-    if (roll < 0) return key
-  }
-  return entries[entries.length - 1][0]
+/** One reproducible roll in [0, 1) for this pet at this moment. `salt` separates different rolls made at the same time. */
+export function rollAt(petId: string, t: number, salt: number): number {
+  return seededRandom(hashString(petId) ^ Math.floor(t / 1000) ^ Math.imul(salt + 1, 0x9e3779b1))()
 }

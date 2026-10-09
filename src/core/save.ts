@@ -1,120 +1,49 @@
-import type { Inventory, ItemKind, Pet, Save } from './types'
-import { NEED_KEYS } from './types'
-import { dayIndex, seasonAt } from './calendar'
-import { emptyTraits, stageAt } from './growth'
-import { rollWish } from './prefs'
-import { emptyCare } from './care'
-import { newDaily } from './sim'
-import { STARTING_PANTRY } from './tuning'
+import type { Grave, Pet, Save } from './types'
+import { CHARACTERS } from './types'
+import { createPet } from './sim'
 
-export const SAVE_VERSION = 3
+export const SAVE_VERSION = 1
 
 export function newSave(pet: Pet): Save {
-  return { version: SAVE_VERSION, pets: [pet], activePetId: pet.id }
+  return { version: SAVE_VERSION, pet, graves: [] }
 }
 
-export function activePet(save: Save): Pet {
-  return save.pets.find((p) => p.id === save.activePetId) ?? save.pets[0]
-}
-
-export function withPet(save: Save, pet: Pet): Save {
-  return { ...save, pets: save.pets.map((p) => (p.id === pet.id ? pet : p)) }
-}
-
-type PetV1 = Pick<
-  Pet,
-  'id' | 'name' | 'bornAt' | 'needs' | 'asleep' | 'lastInteractionAt' | 'lonelySince' | 'wanderedOffAt' | 'simulatedTo'
-> & {
-  inventory: Record<string, number>
-  activity: { kind: 'walk'; startedAt: number; endsAt: number; finds: string[] } | null
-}
-
-/** A v2 pet: everything except the care systems (calls, messes, coats). */
-type PetV2 = Omit<Pet, 'coat' | 'care' | 'call' | 'missedNeeds' | 'messes' | 'messClock' | 'visitAt' | 'fussRolled' | 'daily'> & {
-  daily: Pick<Pet['daily'], 'day' | 'goodDay' | 'walkBonds' | 'favorites'>
-}
-
-/** v2 → v3: a clean slate for care. A Mossling already past sprout keeps the plain coat. */
-export function migratePetV2(old: PetV2): Pet {
-  return {
-    ...old,
-    coat: old.stage === 'sprout' ? null : 'mossy',
-    care: emptyCare(),
-    call: null,
-    missedNeeds: [],
-    messes: [],
-    messClock: 0,
-    visitAt: old.lastInteractionAt,
-    fussRolled: false,
-    daily: { ...newDaily(old.daily.day), ...old.daily },
-  }
-}
-
-/** v1 (MVP) → v2: keep everything it had, fill in the new systems as if it was just met. */
-export function migratePetV1(old: PetV1): PetV2 {
-  const t = old.simulatedTo
-  const pet: PetV2 = {
-    id: old.id,
-    name: old.name,
-    bornAt: old.bornAt,
-    hemisphere: 'north',
-    needs: { ...old.needs },
-    asleep: old.asleep,
-    // v1 item kinds are all still valid v2 kinds.
-    activity: old.activity ? { ...old.activity, destination: 'meadow', finds: old.activity.finds as ItemKind[] } : null,
-    lastInteractionAt: old.lastInteractionAt,
-    lonelySince: old.lonelySince,
-    wanderedOffAt: old.wanderedOffAt,
-    inventory: { ...STARTING_PANTRY, ...(old.inventory as Inventory) },
-    stage: stageAt(old.bornAt, t),
-    form: null,
-    traits: emptyTraits(),
-    bond: 0,
-    sniffles: null,
-    immuneUntil: 0,
-    chillHours: 0,
-    delightUntil: 0,
-    known: {},
-    wish: null,
-    daily: { day: dayIndex(t), goodDay: false, walkBonds: 0, favorites: [] },
-    season: seasonAt(t, 'north'),
-    seenSnow: false,
-    walks: 0,
-    journal: [{ at: old.bornAt, kind: 'hatched' }],
-    simulatedTo: t,
-  }
-  // Someone who already raised it past sprout gets a form from day one.
-  if (pet.stage !== 'sprout') pet.form = 'homebody'
-  pet.wish = rollWish(migratePetV2(pet), pet.daily.day)
-  return pet
-}
-
-function isPetLike(x: unknown): x is PetV1 {
-  if (!x || typeof x !== 'object') return false
-  const p = x as PetV1
-  return (
-    typeof p.id === 'string' &&
-    typeof p.name === 'string' &&
-    typeof p.bornAt === 'number' &&
-    typeof p.simulatedTo === 'number' &&
-    !!p.needs &&
-    NEED_KEYS.every((k) => typeof p.needs[k] === 'number')
-  )
-}
-
-/** Parses a stored save (migrating older versions); null for anything unrecognised. */
+/** Reads a stored save. Anything that isn't a current save (including old prototypes) reads as no save. */
 export function parseSave(raw: string | null): Save | null {
   if (!raw) return null
+  let data: unknown
   try {
-    const data = JSON.parse(raw) as { version?: number; pets?: unknown[]; activePetId?: string }
-    if (!Array.isArray(data?.pets) || data.pets.length === 0 || !data.pets.every(isPetLike)) return null
-    let pets: Pet[]
-    if (data.version === 1) pets = (data.pets as PetV1[]).map((p) => migratePetV2(migratePetV1(p)))
-    else if (data.version === 2) pets = (data.pets as PetV2[]).map(migratePetV2)
-    else if (data.version === SAVE_VERSION) pets = data.pets as Pet[]
-    else return null
-    return { version: SAVE_VERSION, pets, activePetId: data.activePetId ?? pets[0].id }
+    data = JSON.parse(raw)
   } catch {
     return null
+  }
+  if (typeof data !== 'object' || data === null) return null
+  const save = data as Partial<Save>
+  if (save.version !== SAVE_VERSION || !Array.isArray(save.graves)) return null
+  const pet = save.pet as Partial<Pet> | undefined
+  if (!pet || typeof pet.id !== 'string' || typeof pet.simulatedTo !== 'number' || !CHARACTERS.includes(pet.character as never)) return null
+  return save as Save
+}
+
+export function graveOf(p: Pet): Grave | null {
+  if (!p.died) return null
+  return {
+    name: p.name,
+    generation: p.generation,
+    character: p.character,
+    age: p.age,
+    cause: p.died.cause,
+    plantedAt: p.plantedAt,
+    diedAt: p.died.at,
+  }
+}
+
+/** After a death: the old one gets a gravestone and a new spore is planted. */
+export function plantAgain(save: Save, id: string, name: string, now: number): Save {
+  const grave = graveOf(save.pet)
+  return {
+    ...save,
+    pet: createPet(id, name, now, save.pet.generation + 1),
+    graves: grave ? [...save.graves, grave] : save.graves,
   }
 }
